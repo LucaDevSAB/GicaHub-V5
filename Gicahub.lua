@@ -1,184 +1,152 @@
--- 🌌 Gica Hub v5 Ultra Compact – KRNL (Auto-Pet-Hopper nur bei Pet vorhanden)
--- Password: 1234-5678-9012
--- Hinweis: Benötigt HttpService & TeleportService (KRNL / Executor mit HTTP erlaubt)
+-- 🌌 Gica Hub v5 KRNL Mobile – Kompakt
+-- Alles in einem Script, sofort für Android KRNL
 
-local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
+local P = game:GetService("Players").LocalPlayer
+local TS = game:GetService("TeleportService")
+local RS = game:GetService("ReplicatedStorage")
+local HS = game:GetService("HttpService")
+local WS = game:GetService("Workspace")
 
-local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
-local Svt = {
-    SelectedPet = "Los Combinasionas",
-    FinderActive = false
-}
+local S = {Pet=nil,Active=false}
 
--- =======================
--- Hilfsfunktionen
--- =======================
-local function playerHasPetLocal(plr, petName)
-    if not plr or not petName then return false end
-    local found = false
+-- Pet-Daten Ordner
+local PF = RS:FindFirstChild("PetData") or Instance.new("Folder",RS)
+PF.Name="PetData"
 
-    -- Prüfen auf Attributes
-    if plr.GetAttributes then
-        local ok, attrs = pcall(function() return plr:GetAttributes() end)
-        if ok then
-            for _,v in pairs(attrs) do
-                if tostring(v):lower():match(petName:lower()) then
-                    found = true
-                end
-            end
-        end
-    end
-
-    -- Prüfen auf Leaderstats / Stats
-    local s = plr:FindFirstChild("leaderstats") or plr:FindFirstChild("Leaderstats") or plr:FindFirstChild("stats")
-    if s and s.GetChildren then
-        for _,v in pairs(s:GetChildren()) do
-            local ok,val = pcall(function() return tostring(v.Value or v.Text or "") end)
-            if ok and val:lower():match(petName:lower()) then
-                found = true
-            end
-        end
-    end
-
-    -- Prüfen im Character
-    if plr.Character then
-        for _,obj in pairs(plr.Character:GetDescendants()) do
-            if obj:IsA("StringValue") or obj:IsA("NumberValue") or obj:IsA("IntValue") or obj:IsA("ObjectValue") then
-                local ok,t = pcall(function() return tostring(obj.Value) end)
-                if ok and t:lower():match(petName:lower()) then
-                    found = true
-                end
-            end
-        end
-    end
-
-    return found
-end
-
-local function currentServerHasPet(petName)
-    for _,plr in pairs(Players:GetPlayers()) do
-        if plr ~= LP and playerHasPetLocal(plr, petName) then
-            return true, plr
-        end
-    end
-    return false, nil
-end
-
--- =======================
--- Auto-Pet-Finder / Server-Hop (kontinuierlich)
--- =======================
-local function startFinder()
-    if Svt.FinderActive then return end
-    Svt.FinderActive = true
-    print("✅ Auto-Finder gestartet für Pet:", Svt.SelectedPet)
-
-    -- Zuerst aktuellen Server prüfen
-    local found, plr = currentServerHasPet(Svt.SelectedPet)
-    if found then
-        print("✅ Pet bereits im aktuellen Server bei Spieler:", plr.Name)
-        Svt.FinderActive = false
-        return
-    end
-
-    local PlaceId = game.PlaceId
-    local serversChecked = {}
-    local pageCursor = ""
-
-    -- Spawn Hintergrundthread, damit GUI nicht blockiert wird
-    spawn(function()
-        while Svt.FinderActive do
-            local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
-            if pageCursor ~= "" then url = url.."&cursor="..pageCursor end
-
-            local success, response = pcall(function() return HttpService:GetAsync(url) end)
-            if not success then
-                warn("❌ Fehler beim Abrufen der Serverliste")
-                break
-            end
-
-            local data = HttpService:JSONDecode(response)
-            pageCursor = data.nextPageCursor or ""
-
-            if not data.data or #data.data == 0 then
-                print("⚠️ Keine Server in dieser Seite verfügbar")
-                break
-            end
-
-            -- Alle Server prüfen
-            for _,server in pairs(data.data) do
-                local sid = server.id
-                if not serversChecked[sid] then
-                    serversChecked[sid] = true
-                    print("[Server Check] ServerID:", sid, "Spieler:", server.playing)
-
-                    -- Hier Auto-Hop: Teleport zu Server
-                    -- Sobald Teleport passiert, Script stoppt auf aktuellem Client
-                    local hopSuccess, hopErr = pcall(function()
-                        TeleportService:TeleportToPlaceInstance(PlaceId, sid, LP)
-                    end)
-                    if not hopSuccess then
-                        warn("❌ Fehler beim Hoppen:", hopErr)
+-- Update Pets
+spawn(function()
+    while true do
+        PF:ClearAllChildren()
+        for _,b in pairs(WS:GetChildren()) do
+            if b:IsA("Model") or b:IsA("Folder") then
+                for _,o in pairs(b:GetDescendants()) do
+                    if o:IsA("StringValue") or o:IsA("ObjectValue") or o:IsA("IntValue") or o:IsA("NumberValue") then
+                        local v=Instance.new("StringValue",PF)
+                        v.Name=tostring(o.Value)
+                        v.Value=b.Name
+                    elseif o:IsA("MeshPart") or o:IsA("Part") then
+                        local v=Instance.new("StringValue",PF)
+                        v.Name=o.Name
+                        v.Value=b.Name
                     end
-                    -- Teleport beendet Script → kein break nötig
-                    return
                 end
             end
+        end
+        wait(5)
+    end
+end)
 
-            if pageCursor == "" then
-                print("⚠️ Keine weiteren Server verfügbar. Neuer Versuch in 5 Sekunden...")
-                pageCursor = "" -- reset für neuen Request
-                wait(5)
+-- Prüfen ob Pet vorhanden
+local function HasPet(p)
+    for _,v in pairs(PF:GetChildren()) do
+        if v.Name:lower():match(p:lower()) then return true,v.Value end
+    end
+    return false,nil
+end
+
+-- Auto Finder
+local function Finder()
+    if not S.Pet then warn("⚠️ Bitte Pet auswählen!") return end
+    if S.Active then return end
+    S.Active=true
+    local f,bn=HasPet(S.Pet)
+    if f then print("✅ Pet im aktuellen Server in Base:",bn) S.Active=false return end
+    local PID = game.PlaceId
+    local checked,cursor = {}, ""
+    spawn(function()
+        while S.Active do
+            local url="https://games.roblox.com/v1/games/"..PID.."/servers/Public?sortOrder=Asc&limit=100"
+            if cursor~="" then url=url.."&cursor="..cursor end
+            local success,res = pcall(function() return HS:GetAsync(url) end)
+            if not success then warn(res) wait(5) continue end
+            local data
+            local ok,err = pcall(function() data=HS:JSONDecode(res) end)
+            if not ok then warn(err) wait(5) continue end
+            cursor=data.nextPageCursor or ""
+            if data.data then
+                for _,s in pairs(data.data) do
+                    if not checked[s.id] then
+                        checked[s.id]=true
+                        pcall(function() TS:TeleportToPlaceInstance(PID,s.id,P) end)
+                        return
+                    end
+                end
             end
-
+            if cursor=="" then print("⚠️ Keine Server verfügbar, retry in 5s") wait(5) cursor="" end
             wait(1)
         end
     end)
 end
 
--- =======================
 -- GUI
--- =======================
-local function createUI()
-    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
-    pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
+local function UI()
+    local scr = Instance.new("ScreenGui",P:WaitForChild("PlayerGui"))
+    scr.Name="GicaHubUI"
+    local f=Instance.new("Frame",scr)
+    f.Size=UDim2.new(0.9,0,0.4,0)
+    f.Position=UDim2.new(0.05,0,0.3,0)
+    f.BackgroundColor3=Color3.fromRGB(28,6,40)
 
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "GicaHubUI"
-    screen.Parent = parent
+    local lbl=Instance.new("TextLabel",f)
+    lbl.Size=UDim2.new(1,-20,0,28)
+    lbl.Position=UDim2.new(0,10,0,10)
+    lbl.BackgroundTransparency=1
+    lbl.Text="Wähle Pet:"
+    lbl.TextColor3=Color3.fromRGB(255,255,255)
+    lbl.Font=Enum.Font.GothamBold
+    lbl.TextSize=20
 
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0,320,0,200)
-    frame.Position = UDim2.new(0.5,-160,0.5,-100)
-    frame.BackgroundColor3 = Color3.fromRGB(28,6,40)
-    frame.Parent = screen
+    local dd=Instance.new("TextButton",f)
+    dd.Size=UDim2.new(0.8,0,0.2,0)
+    dd.Position=UDim2.new(0.1,0,0.2,0)
+    dd.Text="Pet auswählen"
+    dd.Font=Enum.Font.GothamBold
+    dd.TextSize=18
+    dd.TextColor3=Color3.fromRGB(255,255,255)
+    dd.BackgroundColor3=Color3.fromRGB(80,0,150)
 
-    local petLabel = Instance.new("TextLabel")
-    petLabel.Size = UDim2.new(1,-20,0,28)
-    petLabel.Position = UDim2.new(0,10,0,20)
-    petLabel.BackgroundTransparency = 1
-    petLabel.Text = "Pet: "..Svt.SelectedPet
-    petLabel.TextColor3 = Color3.fromRGB(255,255,255)
-    petLabel.Font = Enum.Font.GothamBold
-    petLabel.TextSize = 16
-    petLabel.Parent = frame
+    local df=Instance.new("ScrollingFrame",f)
+    df.Size=UDim2.new(0.8,0,0.5,0)
+    df.Position=UDim2.new(0.1,0,0.4,0)
+    df.BackgroundColor3=Color3.fromRGB(40,0,80)
+    df.Visible=false
+    df.CanvasSize=UDim2.new(0,0,0,0)
 
-    local finderBtn = Instance.new("TextButton")
-    finderBtn.Size = UDim2.new(0,140,0,32)
-    finderBtn.Position = UDim2.new(0.5,-70,0,60)
-    finderBtn.Text = "Start Auto-Finder"
-    finderBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
-    finderBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    finderBtn.Font = Enum.Font.GothamBold
-    finderBtn.TextSize = 16
-    finderBtn.Parent = frame
+    local function UpdateDD()
+        df:ClearAllChildren()
+        local y=0
+        for _,v in pairs(PF:GetChildren()) do
+            local b=Instance.new("TextButton",df)
+            b.Size=UDim2.new(1,0,0,30)
+            b.Position=UDim2.new(0,0,0,y)
+            b.Text=v.Name
+            b.Font=Enum.Font.GothamBold
+            b.TextSize=16
+            b.TextColor3=Color3.fromRGB(255,255,255)
+            b.BackgroundColor3=Color3.fromRGB(100,0,180)
+            y=y+32
+            df.CanvasSize=UDim2.new(0,0,0,y)
+            b.MouseButton1Click:Connect(function()
+                S.Pet=v.Name
+                dd.Text=v.Name
+                df.Visible=false
+            end)
+        end
+    end
 
-    finderBtn.MouseButton1Click:Connect(startFinder)
+    spawn(function() while true do pcall(UpdateDD) wait(5) end end)
+    dd.MouseButton1Click:Connect(function() df.Visible=not df.Visible end)
+
+    local btn=Instance.new("TextButton",f)
+    btn.Size=UDim2.new(0.8,0,0.2,0)
+    btn.Position=UDim2.new(0.1,0,0.85,0)
+    btn.Text="Start Finder"
+    btn.Font=Enum.Font.GothamBold
+    btn.TextSize=20
+    btn.TextColor3=Color3.fromRGB(255,255,255)
+    btn.BackgroundColor3=Color3.fromRGB(80,0,150)
+    btn.MouseButton1Click:Connect(Finder)
 end
 
--- =======================
--- Start
--- =======================
-createUI()
-print("✅ Gica Hub v5 Ultra Compact — KRNL Auto-Pet-Hopper ready.")
+UI()
+print("✅ Gica Hub v5 KRNL Mobile Kompakt ready.")
