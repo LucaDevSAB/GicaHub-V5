@@ -5,61 +5,56 @@
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-local TweenService = game:GetService("TweenService")
 
 local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
-local SETTINGS_FILE = "GicaHubSettings.json"
-
 local Svt = {
     SelectedPet = "Los Combinasionas",
     FinderActive = false
 }
 
-local has_isfile = type(isfile) == "function"
-local has_readfile = type(readfile) == "function"
-local has_writefile = type(writefile) == "function"
-
-if has_isfile and isfile(SETTINGS_FILE) and has_readfile then
-    pcall(function()
-        local ok, decoded = pcall(function() return HttpService:JSONDecode(readfile(SETTINGS_FILE)) end)
-        if ok and type(decoded) == "table" then
-            for k,v in pairs(decoded) do Svt[k] = v end
-        end
-    end)
-end
-
-local function Save()
-    if has_writefile then
-        pcall(function() writefile(SETTINGS_FILE, HttpService:JSONEncode(Svt)) end)
-    end
-end
-
+-- =======================
+-- Hilfsfunktionen
+-- =======================
 local function playerHasPetLocal(plr, petName)
     if not plr or not petName then return false end
+    local found = false
+
+    -- Prüfen auf Attributes
     if plr.GetAttributes then
         local ok, attrs = pcall(function() return plr:GetAttributes() end)
-        if ok and type(attrs) == "table" then
+        if ok then
             for _,v in pairs(attrs) do
-                if tostring(v):lower():match(petName:lower()) then return true end
+                if tostring(v):lower():match(petName:lower()) then
+                    found = true
+                end
             end
         end
     end
+
+    -- Prüfen auf Leaderstats / Stats
     local s = plr:FindFirstChild("leaderstats") or plr:FindFirstChild("Leaderstats") or plr:FindFirstChild("stats")
     if s and s.GetChildren then
         for _,v in pairs(s:GetChildren()) do
-            local ok, val = pcall(function() return tostring(v.Value or v.Text or "") end)
-            if ok and val:lower():match(petName:lower()) then return true end
-        end
-    end
-    if plr.Character then
-        for _,obj in pairs(plr.Character:GetDescendants()) do
-            if obj:IsA("StringValue") or obj:IsA("NumberValue") or obj:IsA("IntValue") or obj:IsA("ObjectValue") then
-                local ok, t = pcall(function() return tostring(obj.Value) end)
-                if ok and t:lower():match(petName:lower()) then return true end
+            local ok,val = pcall(function() return tostring(v.Value or v.Text or "") end)
+            if ok and val:lower():match(petName:lower()) then
+                found = true
             end
         end
     end
-    return false
+
+    -- Prüfen im Character
+    if plr.Character then
+        for _,obj in pairs(plr.Character:GetDescendants()) do
+            if obj:IsA("StringValue") or obj:IsA("NumberValue") or obj:IsA("IntValue") or obj:IsA("ObjectValue") then
+                local ok,t = pcall(function() return tostring(obj.Value) end)
+                if ok and t:lower():match(petName:lower()) then
+                    found = true
+                end
+            end
+        end
+    end
+
+    return found
 end
 
 local function currentServerHasPet(petName)
@@ -72,7 +67,7 @@ local function currentServerHasPet(petName)
 end
 
 -- =======================
--- Auto-Pet-Finder / Server-Hop (Automatisch)
+-- Auto-Pet-Finder / Server-Hop (kontinuierlich)
 -- =======================
 local function startFinder()
     if Svt.FinderActive then return end
@@ -91,53 +86,59 @@ local function startFinder()
     local serversChecked = {}
     local pageCursor = ""
 
-    while Svt.FinderActive do
-        local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
-        if pageCursor ~= "" then
-            url = url.."&cursor="..pageCursor
-        end
+    -- Spawn Hintergrundthread, damit GUI nicht blockiert wird
+    spawn(function()
+        while Svt.FinderActive do
+            local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+            if pageCursor ~= "" then url = url.."&cursor="..pageCursor end
 
-        local success, response = pcall(function() return HttpService:GetAsync(url) end)
-        if not success then
-            warn("❌ Fehler beim Abrufen von Serverdaten")
-            break
-        end
-
-        local data = HttpService:JSONDecode(response)
-        pageCursor = data.nextPageCursor or ""
-
-        for _, server in pairs(data.data or {}) do
-            local sid = server.id
-            if not serversChecked[sid] then
-                serversChecked[sid] = true
-                print("[Server Check] ServerID:", sid, "Spieler:", server.playing)
-
-                -- Direkt hoppen zum nächsten Server
-                local hopSuccess, hopErr = pcall(function()
-                    TeleportService:TeleportToPlaceInstance(PlaceId, sid, LP)
-                end)
-
-                if not hopSuccess then
-                    warn("❌ Fehler beim Hoppen:", hopErr)
-                end
-
-                -- Sobald Teleport passiert, Script stoppt automatisch
-                return
+            local success, response = pcall(function() return HttpService:GetAsync(url) end)
+            if not success then
+                warn("❌ Fehler beim Abrufen der Serverliste")
+                break
             end
-        end
 
-        if pageCursor == "" then
-            print("⚠️ Kein Server mehr verfügbar, der Pet haben könnte.")
-            break
-        end
-        wait(1)
-    end
+            local data = HttpService:JSONDecode(response)
+            pageCursor = data.nextPageCursor or ""
 
-    Svt.FinderActive = false
+            if not data.data or #data.data == 0 then
+                print("⚠️ Keine Server in dieser Seite verfügbar")
+                break
+            end
+
+            -- Alle Server prüfen
+            for _,server in pairs(data.data) do
+                local sid = server.id
+                if not serversChecked[sid] then
+                    serversChecked[sid] = true
+                    print("[Server Check] ServerID:", sid, "Spieler:", server.playing)
+
+                    -- Hier Auto-Hop: Teleport zu Server
+                    -- Sobald Teleport passiert, Script stoppt auf aktuellem Client
+                    local hopSuccess, hopErr = pcall(function()
+                        TeleportService:TeleportToPlaceInstance(PlaceId, sid, LP)
+                    end)
+                    if not hopSuccess then
+                        warn("❌ Fehler beim Hoppen:", hopErr)
+                    end
+                    -- Teleport beendet Script → kein break nötig
+                    return
+                end
+            end
+
+            if pageCursor == "" then
+                print("⚠️ Keine weiteren Server verfügbar. Neuer Versuch in 5 Sekunden...")
+                pageCursor = "" -- reset für neuen Request
+                wait(5)
+            end
+
+            wait(1)
+        end
+    end)
 end
 
 -- =======================
--- GUI Setup
+-- GUI
 -- =======================
 local function createUI()
     local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
@@ -173,9 +174,7 @@ local function createUI()
     finderBtn.TextSize = 16
     finderBtn.Parent = frame
 
-    finderBtn.MouseButton1Click:Connect(function()
-        startFinder()
-    end)
+    finderBtn.MouseButton1Click:Connect(startFinder)
 end
 
 -- =======================
