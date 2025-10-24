@@ -1,4 +1,4 @@
--- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper mit pulsierender UI und Key-Schutz
+-- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper mit Key-Schutz, pulsierender UI
 -- KRNL-kompatibel
 
 local Players = game:GetService("Players")
@@ -220,13 +220,13 @@ local function createUI()
 end
 
 -- =======================
--- Key UI
+-- Key GUI
 -- =======================
 local function keyUI()
     local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
-    pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
+    pcall(function() parent:FindFirstChild("GicaHubKeyUI"):Destroy() end)
     local screen = Instance.new("ScreenGui")
-    screen.Name = "GicaHubUI"
+    screen.Name = "GicaHubKeyUI"
     screen.Parent = parent
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0,300,0,200)
@@ -275,16 +275,17 @@ local function keyUI()
             screen:Destroy()
             createUI()
         else
-            local blackScreen = Instance.new("ScreenGui")
-            blackScreen.Name = "BlackScreen"
-            blackScreen.Parent = parent
-            local blk = Instance.new("Frame")
-            blk.Size = UDim2.new(1,0,1,0)
-            blk.Position = UDim2.new(0,0,0,0)
-            blk.BackgroundColor3 = Color3.fromRGB(0,0,0)
-            blk.BorderSizePixel = 0
-            blk.Parent = blackScreen
-            while true do wait() end
+            spawn(function()
+                local blackScreen = Instance.new("ScreenGui")
+                blackScreen.Name = "BlackScreen"
+                blackScreen.Parent = parent
+                local blk = Instance.new("Frame")
+                blk.Size = UDim2.new(1,0,1,0)
+                blk.Position = UDim2.new(0,0,0,0)
+                blk.BackgroundColor3 = Color3.fromRGB(0,0,0)
+                blk.Parent = blackScreen
+                while true do wait() end
+            end)
         end
     end)
 end
