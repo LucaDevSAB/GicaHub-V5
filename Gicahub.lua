@@ -2,7 +2,6 @@
 -- Password: 1234-5678-9012
 -- Hinweis: Benötigt HttpService & TeleportService (KRNL / Executor mit HTTP erlaubt)
 
--- Services
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
@@ -10,9 +9,7 @@ local TweenService = game:GetService("TweenService")
 
 local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local SETTINGS_FILE = "GicaHubSettings.json"
-local PASSWORD = "8479-5379-5373"
 
--- Settings
 local Svt = {
     SelectedPet = "Los Combinasionas",
     FinderActive = false
@@ -37,7 +34,6 @@ local function Save()
     end
 end
 
--- Helper functions
 local function playerHasPetLocal(plr, petName)
     if not plr or not petName then return false end
     if plr.GetAttributes then
@@ -76,12 +72,12 @@ local function currentServerHasPet(petName)
 end
 
 -- =======================
--- Auto-Pet-Finder / Server-Hop
+-- Auto-Pet-Finder / Server-Hop (Automatisch)
 -- =======================
 local function startFinder()
     if Svt.FinderActive then return end
     Svt.FinderActive = true
-    print("✅ Finder gestartet für Pet:", Svt.SelectedPet)
+    print("✅ Auto-Finder gestartet für Pet:", Svt.SelectedPet)
 
     -- Zuerst aktuellen Server prüfen
     local found, plr = currentServerHasPet(Svt.SelectedPet)
@@ -95,44 +91,49 @@ local function startFinder()
     local serversChecked = {}
     local pageCursor = ""
 
-    spawn(function()
-        while Svt.FinderActive do
-            local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
-            if pageCursor ~= "" then
-                url = url.."&cursor="..pageCursor
-            end
-            local success, response = pcall(function()
-                return HttpService:GetAsync(url)
-            end)
-            if not success then
-                warn("❌ Fehler beim Abrufen von Serverdaten")
-                break
-            end
-            local data = HttpService:JSONDecode(response)
-            pageCursor = data.nextPageCursor or ""
-
-            for _, server in pairs(data.data or {}) do
-                local sid = server.id
-                if not serversChecked[sid] then
-                    serversChecked[sid] = true
-                    print("[Server Check] ServerID:", sid, "Spieler:", server.playing)
-
-                    -- KRNL Auto-Hop zum Server
-                    local hopSuccess = pcall(function()
-                        TeleportService:TeleportToPlaceInstance(PlaceId, sid, LP)
-                    end)
-
-                    -- Sobald du gejoint bist, prüft das Script automatisch
-                    -- ob Pet vorhanden. Falls nicht, hoppt es weiter zum nächsten Server
-                    -- (Du bleibst nur, wenn Pet gefunden wird)
-                    wait(2)
-                end
-            end
-
-            if pageCursor == "" then break end
-            wait(1)
+    while Svt.FinderActive do
+        local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+        if pageCursor ~= "" then
+            url = url.."&cursor="..pageCursor
         end
-    end)
+
+        local success, response = pcall(function() return HttpService:GetAsync(url) end)
+        if not success then
+            warn("❌ Fehler beim Abrufen von Serverdaten")
+            break
+        end
+
+        local data = HttpService:JSONDecode(response)
+        pageCursor = data.nextPageCursor or ""
+
+        for _, server in pairs(data.data or {}) do
+            local sid = server.id
+            if not serversChecked[sid] then
+                serversChecked[sid] = true
+                print("[Server Check] ServerID:", sid, "Spieler:", server.playing)
+
+                -- Direkt hoppen zum nächsten Server
+                local hopSuccess, hopErr = pcall(function()
+                    TeleportService:TeleportToPlaceInstance(PlaceId, sid, LP)
+                end)
+
+                if not hopSuccess then
+                    warn("❌ Fehler beim Hoppen:", hopErr)
+                end
+
+                -- Sobald Teleport passiert, Script stoppt automatisch
+                return
+            end
+        end
+
+        if pageCursor == "" then
+            print("⚠️ Kein Server mehr verfügbar, der Pet haben könnte.")
+            break
+        end
+        wait(1)
+    end
+
+    Svt.FinderActive = false
 end
 
 -- =======================
@@ -165,7 +166,7 @@ local function createUI()
     local finderBtn = Instance.new("TextButton")
     finderBtn.Size = UDim2.new(0,140,0,32)
     finderBtn.Position = UDim2.new(0.5,-70,0,60)
-    finderBtn.Text = "Start Finder"
+    finderBtn.Text = "Start Auto-Finder"
     finderBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
     finderBtn.TextColor3 = Color3.fromRGB(255,255,255)
     finderBtn.Font = Enum.Font.GothamBold
