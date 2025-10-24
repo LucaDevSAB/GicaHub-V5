@@ -1,5 +1,6 @@
 -- 🌌 Gica Hub v5 ultra compact (loadstring-ready)
--- ✅ Funktioniert mit Kavo UI oder Fallback UI
+-- ✅ Fallback UI & Kavo UI (mobilfreundlich)
+-- 🔹 Midnight Theme
 
 -- 🔹 Services
 local Players = game:GetService("Players")
@@ -56,7 +57,7 @@ do
     end
 end
 
--- 🔹 Fallback UI
+-- 🔹 Fallback UI (mobilfreundlich, verschiebbar, minimierbar)
 local function create_simple_ui()
     local pg = LP:WaitForChild("PlayerGui")
     local screen = Instance.new("ScreenGui")
@@ -66,16 +67,85 @@ local function create_simple_ui()
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0,300,0,260)
     frame.Position = UDim2.new(0.5,-150,0.5,-130)
-    frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+    frame.BackgroundColor3 = Color3.fromRGB(10,10,30) -- Midnight
     frame.Parent = screen
+
+    -- Titelbar
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1,0,0,30)
+    titleBar.Position = UDim2.new(0,0,0,0)
+    titleBar.BackgroundColor3 = Color3.fromRGB(20,20,50)
+    titleBar.Parent = frame
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1,-40,1,0)
+    titleLabel.Position = UDim2.new(0,10,0,0)
+    titleLabel.Text = "🌌 Gica Hub"
+    titleLabel.TextColor3 = Color3.fromRGB(200,200,255)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+
+    -- Minimieren Button
+    local minBtn = Instance.new("TextButton")
+    minBtn.Size = UDim2.new(0,30,0,30)
+    minBtn.Position = UDim2.new(1,-35,0,0)
+    minBtn.Text = "-"
+    minBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    minBtn.BackgroundColor3 = Color3.fromRGB(40,40,70)
+    minBtn.Parent = titleBar
+
+    local minimized = false
+    minBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        for _,child in pairs(frame:GetChildren()) do
+            if child ~= titleBar then
+                child.Visible = not minimized
+            end
+        end
+        frame.Size = minimized and UDim2.new(0,300,0,30) or UDim2.new(0,300,0,260)
+    end)
+
+    -- Drag Funktion
+    local dragging, dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    RunService.RenderStepped:Connect(function()
+        if dragging and dragInput then update(dragInput) end
+    end)
 
     local function createButton(text,posY,callback)
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1,-20,0,30)
         btn.Position = UDim2.new(0,10,0,posY)
         btn.Text = text
-        btn.TextColor3 = Color3.fromRGB(255,255,255)
-        btn.BackgroundColor3 = Color3.fromRGB(50,50,50)
+        btn.TextColor3 = Color3.fromRGB(200,200,255)
+        btn.BackgroundColor3 = Color3.fromRGB(30,30,60)
         btn.Parent = frame
         btn.MouseButton1Click:Connect(callback)
     end
@@ -84,20 +154,22 @@ local function create_simple_ui()
     createButton("Speed 100",40,function()
         local c = LP.Character or LP.CharacterAdded:Wait()
         local hum = c:FindFirstChild("Humanoid")
-        if hum then hum.WalkSpeed=100 Svt.WalkSpeed=100 Save() print("[GicaHub] WalkSpeed = 100") end
+        if hum then hum.WalkSpeed=100 Svt.WalkSpeed=100 Save() end
     end)
 
-    -- WalkSpeed Slider
+    -- WalkSpeed Slider (TextBox)
     local slider = Instance.new("TextBox")
     slider.Size = UDim2.new(1,-20,0,30)
     slider.Position = UDim2.new(0,10,0,80)
     slider.PlaceholderText = "WalkSpeed eingeben"
+    slider.BackgroundColor3 = Color3.fromRGB(30,30,60)
+    slider.TextColor3 = Color3.fromRGB(200,200,255)
     slider.Parent = frame
     slider.FocusLost:Connect(function()
         local val = tonumber(slider.Text)
         local c = LP.Character or LP.CharacterAdded:Wait()
         local hum = c:FindFirstChild("Humanoid")
-        if val and hum then hum.WalkSpeed=val Svt.WalkSpeed=val Save() print("[GicaHub] WalkSpeed =",val) end
+        if val and hum then hum.WalkSpeed=val Svt.WalkSpeed=val Save() end
     end)
 
     -- Teleport Box
@@ -105,6 +177,8 @@ local function create_simple_ui()
     tpbox.Size = UDim2.new(1,-20,0,30)
     tpbox.Position = UDim2.new(0,10,0,120)
     tpbox.PlaceholderText = "Spielername"
+    tpbox.BackgroundColor3 = Color3.fromRGB(30,30,60)
+    tpbox.TextColor3 = Color3.fromRGB(200,200,255)
     tpbox.Parent = frame
     tpbox.FocusLost:Connect(function()
         local n = tpbox.Text
@@ -113,7 +187,6 @@ local function create_simple_ui()
         local hrp = c:FindFirstChild("HumanoidRootPart")
         if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") and hrp then
             hrp.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0,3,0)
-            print("[GicaHub] Teleport to", n)
         end
     end)
 
@@ -125,7 +198,7 @@ local function create_simple_ui()
     flyBtn.Size = UDim2.new(0,120,0,40)
     flyBtn.Position = UDim2.new(0.5,-60,0,170)
     flyBtn.Text = "Start Fly"
-    flyBtn.BackgroundColor3 = Color3.fromRGB(0,255,255)
+    flyBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
     flyBtn.TextColor3 = Color3.fromRGB(0,0,0)
     flyBtn.Parent = frame
 
@@ -154,17 +227,17 @@ local function create_simple_ui()
     flyBtn.MouseButton1Click:Connect(toggleFly)
 end
 
--- 🔹 Kavo UI Variante
+-- 🔹 Kavo UI Variante (Midnight)
 if Lib then
-    local W = Lib.CreateLib("🌌 Gica Hub",{SchemeColor=Color3.fromRGB(0,255,255),Background=Color3.fromRGB(20,20,20),Header=Color3.fromRGB(0,255,255),TextColor=Color3.fromRGB(255,255,255),ElementColor=Color3.fromRGB(30,30,30)})
+    local W = Lib.CreateLib("🌌 Gica Hub",{SchemeColor=Color3.fromRGB(0,150,255),Background=Color3.fromRGB(10,10,30),Header=Color3.fromRGB(0,150,255),TextColor=Color3.fromRGB(200,200,255),ElementColor=Color3.fromRGB(20,20,50)})
     local MT = W:NewTab("Main")
     local Fd = MT:NewSection("Finder")
     local Sp = MT:NewSection("Speed")
     local TP = MT:NewSection("Teleport")
     local Fy = MT:NewSection("Fly")
 
-    -- Server Hop
-    Fd:NewButton("Server Hop","",function()
+    -- Finder (Server Hop ersetzt)
+    Fd:NewButton("Finder","",function()
         spawn(function()
             local servers={}
             local ok,res=pcall(function()
@@ -209,13 +282,12 @@ if Lib then
         end
     end)
 
-    -- Fly (Fly-Fenster)
+    -- Fly Fenster
     do
         local fly=false
         local FS=Svt.FlySpeed
         local BG,BV,hbConn
-        local flyGui -- fly button GUI
-
+        local flyGui
         Fy:NewButton("Open Fly Window","",function()
             local pg = LP:WaitForChild("PlayerGui")
             local screen = Instance.new("ScreenGui")
@@ -226,7 +298,7 @@ if Lib then
             flyGui.Size = UDim2.new(0,120,0,50)
             flyGui.Position = UDim2.new(0.5,-60,0.2,0)
             flyGui.Text = "Start Fly"
-            flyGui.BackgroundColor3 = Color3.fromRGB(0,255,255)
+            flyGui.BackgroundColor3 = Color3.fromRGB(0,150,255)
             flyGui.TextColor3 = Color3.fromRGB(0,0,0)
             flyGui.Parent = screen
 
@@ -252,15 +324,16 @@ if Lib then
                     flyGui.Text="Start Fly"
                 end
             end
-
             flyGui.MouseButton1Click:Connect(toggleFly)
         end)
 
-        Fy:NewSlider("FlySpeed","",10,1,function(s) FS=s Svt.FlySpeed=s Save() end)
+        Fy:NewSlider("FlySpeed","",10,1,function(s)
+            FS=s Svt.FlySpeed=s Save()
+        end)
     end
 end
 
--- 🔹 Fallback UI, falls Kavo nicht geladen wird
+-- 🔹 Fallback, falls Kavo nicht geladen
 if not Lib then 
     print("[Gica Hub] Kavo UI konnte nicht geladen werden, Fallback UI aktiviert")
     create_simple_ui() 
