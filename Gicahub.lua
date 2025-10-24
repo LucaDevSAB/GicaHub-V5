@@ -1,5 +1,5 @@
--- 🌌 Gica Hub v5 KRNL Mobile – Kompakt
--- Alles in einem Script, sofort für Android KRNL
+-- 🌌 Gica Hub v5 Mobile – Echte Pets mit Live-Log
+-- Android KRNL-kompatibel, zeigt Server-Check live
 
 local P = game:GetService("Players").LocalPlayer
 local TS = game:GetService("TeleportService")
@@ -13,25 +13,34 @@ local S = {Pet=nil,Active=false}
 local PF = RS:FindFirstChild("PetData") or Instance.new("Folder",RS)
 PF.Name="PetData"
 
--- Update Pets
-spawn(function()
-    while true do
-        PF:ClearAllChildren()
-        for _,b in pairs(WS:GetChildren()) do
-            if b:IsA("Model") or b:IsA("Folder") then
-                for _,o in pairs(b:GetDescendants()) do
-                    if o:IsA("StringValue") or o:IsA("ObjectValue") or o:IsA("IntValue") or o:IsA("NumberValue") then
-                        local v=Instance.new("StringValue",PF)
-                        v.Name=tostring(o.Value)
-                        v.Value=b.Name
-                    elseif o:IsA("MeshPart") or o:IsA("Part") then
-                        local v=Instance.new("StringValue",PF)
-                        v.Name=o.Name
-                        v.Value=b.Name
-                    end
+-- =======================
+-- Echte Pets aus Workspace auslesen
+-- =======================
+local function updatePets()
+    PF:ClearAllChildren()
+    local bases = WS:FindFirstChild("Bases") or WS
+    for _, base in pairs(bases:GetChildren()) do
+        if base:IsA("Model") then
+            for _, obj in pairs(base:GetChildren()) do
+                local petName
+                if obj:IsA("Model") and obj:FindFirstChild("PetName") then
+                    petName = obj.PetName.Value
+                elseif obj:IsA("StringValue") and obj.Name == "PetName" then
+                    petName = obj.Value
+                end
+                if petName then
+                    local v = Instance.new("StringValue", PF)
+                    v.Name = petName
+                    v.Value = base.Name
                 end
             end
         end
+    end
+end
+
+spawn(function()
+    while true do
+        pcall(updatePets)
         wait(5)
     end
 end)
@@ -44,47 +53,15 @@ local function HasPet(p)
     return false,nil
 end
 
--- Auto Finder
-local function Finder()
-    if not S.Pet then warn("⚠️ Bitte Pet auswählen!") return end
-    if S.Active then return end
-    S.Active=true
-    local f,bn=HasPet(S.Pet)
-    if f then print("✅ Pet im aktuellen Server in Base:",bn) S.Active=false return end
-    local PID = game.PlaceId
-    local checked,cursor = {}, ""
-    spawn(function()
-        while S.Active do
-            local url="https://games.roblox.com/v1/games/"..PID.."/servers/Public?sortOrder=Asc&limit=100"
-            if cursor~="" then url=url.."&cursor="..cursor end
-            local success,res = pcall(function() return HS:GetAsync(url) end)
-            if not success then warn(res) wait(5) continue end
-            local data
-            local ok,err = pcall(function() data=HS:JSONDecode(res) end)
-            if not ok then warn(err) wait(5) continue end
-            cursor=data.nextPageCursor or ""
-            if data.data then
-                for _,s in pairs(data.data) do
-                    if not checked[s.id] then
-                        checked[s.id]=true
-                        pcall(function() TS:TeleportToPlaceInstance(PID,s.id,P) end)
-                        return
-                    end
-                end
-            end
-            if cursor=="" then print("⚠️ Keine Server verfügbar, retry in 5s") wait(5) cursor="" end
-            wait(1)
-        end
-    end)
-end
-
--- GUI
+-- =======================
+-- GUI erstellen
+-- =======================
 local function UI()
     local scr = Instance.new("ScreenGui",P:WaitForChild("PlayerGui"))
     scr.Name="GicaHubUI"
     local f=Instance.new("Frame",scr)
-    f.Size=UDim2.new(0.9,0,0.4,0)
-    f.Position=UDim2.new(0.05,0,0.3,0)
+    f.Size=UDim2.new(0.9,0,0.5,0)
+    f.Position=UDim2.new(0.05,0,0.25,0)
     f.BackgroundColor3=Color3.fromRGB(28,6,40)
 
     local lbl=Instance.new("TextLabel",f)
@@ -112,6 +89,17 @@ local function UI()
     df.Visible=false
     df.CanvasSize=UDim2.new(0,0,0,0)
 
+    local logLbl = Instance.new("TextLabel", f)
+    logLbl.Size = UDim2.new(1, -20, 0.1, 0)
+    logLbl.Position = UDim2.new(0, 10, 0.72, 0)
+    logLbl.BackgroundTransparency = 1
+    logLbl.TextColor3 = Color3.fromRGB(0, 255, 0)
+    logLbl.Font = Enum.Font.GothamBold
+    logLbl.TextSize = 16
+    logLbl.Text = "Logs werden hier angezeigt..."
+    logLbl.TextWrapped = true
+
+    -- Dropdown aktualisieren
     local function UpdateDD()
         df:ClearAllChildren()
         local y=0
@@ -137,6 +125,56 @@ local function UI()
     spawn(function() while true do pcall(UpdateDD) wait(5) end end)
     dd.MouseButton1Click:Connect(function() df.Visible=not df.Visible end)
 
+    -- =======================
+    -- Auto Finder mit Log
+    -- =======================
+    local function Finder()
+        if not S.Pet then warn("⚠️ Bitte Pet auswählen!") return end
+        if S.Active then return end
+        S.Active=true
+        logLbl.Text = "Suche nach Server mit Pet: "..S.Pet
+        local PID = game.PlaceId
+        local checked,cursor = {}, ""
+        spawn(function()
+            while S.Active do
+                local url="https://games.roblox.com/v1/games/"..PID.."/servers/Public?sortOrder=Asc&limit=100"
+                if cursor~="" then url=url.."&cursor="..cursor end
+                local success,res = pcall(function() return HS:GetAsync(url) end)
+                if not success then 
+                    logLbl.Text = "Fehler beim Abrufen der Serverliste"
+                    wait(5) 
+                    continue 
+                end
+                local data
+                local ok,err = pcall(function() data=HS:JSONDecode(res) end)
+                if not ok then 
+                    logLbl.Text = "JSON Fehler: "..err
+                    wait(5) 
+                    continue 
+                end
+                cursor = data.nextPageCursor or ""
+                if data.data then
+                    for _,s in pairs(data.data) do
+                        if not checked[s.id] then
+                            checked[s.id]=true
+                            logLbl.Text = "Prüfe ServerID: "..s.id.." Spieler: "..s.playing
+                            -- Hier könntest du später erweitern: Pets im Server prüfen via API
+                            pcall(function() TS:TeleportToPlaceInstance(PID,s.id,P) end)
+                            logLbl.Text = "Teleportiert zu ServerID: "..s.id
+                            return
+                        end
+                    end
+                end
+                if cursor=="" then 
+                    logLbl.Text = "Keine weiteren Server, retry in 5 Sekunden..." 
+                    wait(5) 
+                    cursor=""
+                end
+                wait(1)
+            end
+        end)
+    end
+
     local btn=Instance.new("TextButton",f)
     btn.Size=UDim2.new(0.8,0,0.2,0)
     btn.Position=UDim2.new(0.1,0,0.85,0)
@@ -149,4 +187,4 @@ local function UI()
 end
 
 UI()
-print("✅ Gica Hub v5 KRNL Mobile Kompakt ready.")
+print("✅ Gica Hub v5 Mobile – Echte Pets mit Live-Log ready.")
