@@ -1,190 +1,251 @@
--- 🌌 Gica Hub v5 Mobile – Echte Pets mit Live-Log
--- Android KRNL-kompatibel, zeigt Server-Check live
+-- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper mit Pet-Auswahl (scrollbare Dropdown)
+-- KRNL-kompatibel, startet automatisch beim Join
 
-local P = game:GetService("Players").LocalPlayer
-local TS = game:GetService("TeleportService")
-local RS = game:GetService("ReplicatedStorage")
-local HS = game:GetService("HttpService")
-local WS = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local Workspace = game:GetService("Workspace")
 
-local S = {Pet=nil,Active=false}
-
--- Pet-Daten Ordner
-local PF = RS:FindFirstChild("PetData") or Instance.new("Folder",RS)
-PF.Name="PetData"
+local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 -- =======================
--- Echte Pets aus Workspace auslesen
+-- Alle verfügbaren Steal-a-Brainrot Pets
 -- =======================
-local function updatePets()
-    PF:ClearAllChildren()
-    local bases = WS:FindFirstChild("Bases") or WS
-    for _, base in pairs(bases:GetChildren()) do
-        if base:IsA("Model") then
-            for _, obj in pairs(base:GetChildren()) do
-                local petName
-                if obj:IsA("Model") and obj:FindFirstChild("PetName") then
-                    petName = obj.PetName.Value
-                elseif obj:IsA("StringValue") and obj.Name == "PetName" then
-                    petName = obj.Value
-                end
-                if petName then
-                    local v = Instance.new("StringValue", PF)
-                    v.Name = petName
-                    v.Value = base.Name
-                end
-            end
-        end
-    end
-end
-
-spawn(function()
-    while true do
-        pcall(updatePets)
-        wait(5)
-    end
-end)
-
--- Prüfen ob Pet vorhanden
-local function HasPet(p)
-    for _,v in pairs(PF:GetChildren()) do
-        if v.Name:lower():match(p:lower()) then return true,v.Value end
-    end
-    return false,nil
-end
+local availablePets = {
+    "Noobini Pizzanini",
+    "Lirili Larila",
+    "Tim Cheese",
+    "FluriFlura",
+    "Talpa Di Fero",
+    "Svinina Bombardino",
+    "Pipi Kiwi",
+    "Trippi Troppi",
+    "Gangster Footera",
+    "Bandito Bobritto",
+    "Boneca Ambalabu",
+    "Cacto Hipopotamo",
+    "Ta Ta Ta Ta Sahur",
+    "Tric Trac Baraboom",
+    "Cappuccino Assassino",
+    "Brr Brr Patapim",
+    "Trulimero Trulicina",
+    "Bambini Crostini",
+    "Bananita Dolphinita",
+    "Perochello Lemonchello",
+    "Brri Brri Bicus Dicus Bombicus",
+    "Burbaloni Loliloli",
+    "Lionel Cactuseli",
+    "Blueberrini Octopusini",
+    "Strawberelli Flamingelli",
+    "Bombardiro Crocodilo",
+    "Gorillo Watermelondrillo",
+    "Gattatino Nyanino",
+    "La Grande Combinasion",
+    "Nuclearo Dinossauro",
+    "Garama and Madundung",
+}
 
 -- =======================
--- GUI erstellen
+-- Konfiguration
 -- =======================
-local function UI()
-    local scr = Instance.new("ScreenGui",P:WaitForChild("PlayerGui"))
-    scr.Name="GicaHubUI"
-    local f=Instance.new("Frame",scr)
-    f.Size=UDim2.new(0.9,0,0.5,0)
-    f.Position=UDim2.new(0.05,0,0.25,0)
-    f.BackgroundColor3=Color3.fromRGB(28,6,40)
+local Svt = {
+    SelectedPet = availablePets[1],
+    FinderActive = false,
+    minPlayers = 4,
+    maxAttempts = 200
+}
 
-    local lbl=Instance.new("TextLabel",f)
-    lbl.Size=UDim2.new(1,-20,0,28)
-    lbl.Position=UDim2.new(0,10,0,10)
-    lbl.BackgroundTransparency=1
-    lbl.Text="Wähle Pet:"
-    lbl.TextColor3=Color3.fromRGB(255,255,255)
-    lbl.Font=Enum.Font.GothamBold
-    lbl.TextSize=20
-
-    local dd=Instance.new("TextButton",f)
-    dd.Size=UDim2.new(0.8,0,0.2,0)
-    dd.Position=UDim2.new(0.1,0,0.2,0)
-    dd.Text="Pet auswählen"
-    dd.Font=Enum.Font.GothamBold
-    dd.TextSize=18
-    dd.TextColor3=Color3.fromRGB(255,255,255)
-    dd.BackgroundColor3=Color3.fromRGB(80,0,150)
-
-    local df=Instance.new("ScrollingFrame",f)
-    df.Size=UDim2.new(0.8,0,0.5,0)
-    df.Position=UDim2.new(0.1,0,0.4,0)
-    df.BackgroundColor3=Color3.fromRGB(40,0,80)
-    df.Visible=false
-    df.CanvasSize=UDim2.new(0,0,0,0)
-
-    local logLbl = Instance.new("TextLabel", f)
-    logLbl.Size = UDim2.new(1, -20, 0.1, 0)
-    logLbl.Position = UDim2.new(0, 10, 0.72, 0)
-    logLbl.BackgroundTransparency = 1
-    logLbl.TextColor3 = Color3.fromRGB(0, 255, 0)
-    logLbl.Font = Enum.Font.GothamBold
-    logLbl.TextSize = 16
-    logLbl.Text = "Logs werden hier angezeigt..."
-    logLbl.TextWrapped = true
-
-    -- Dropdown aktualisieren
-    local function UpdateDD()
-        df:ClearAllChildren()
-        local y=0
-        for _,v in pairs(PF:GetChildren()) do
-            local b=Instance.new("TextButton",df)
-            b.Size=UDim2.new(1,0,0,30)
-            b.Position=UDim2.new(0,0,0,y)
-            b.Text=v.Name
-            b.Font=Enum.Font.GothamBold
-            b.TextSize=16
-            b.TextColor3=Color3.fromRGB(255,255,255)
-            b.BackgroundColor3=Color3.fromRGB(100,0,180)
-            y=y+32
-            df.CanvasSize=UDim2.new(0,0,0,y)
-            b.MouseButton1Click:Connect(function()
-                S.Pet=v.Name
-                dd.Text=v.Name
-                df.Visible=false
-            end)
-        end
-    end
-
-    spawn(function() while true do pcall(UpdateDD) wait(5) end end)
-    dd.MouseButton1Click:Connect(function() df.Visible=not df.Visible end)
-
-    -- =======================
-    -- Auto Finder mit Log
-    -- =======================
-    local function Finder()
-        if not S.Pet then warn("⚠️ Bitte Pet auswählen!") return end
-        if S.Active then return end
-        S.Active=true
-        logLbl.Text = "Suche nach Server mit Pet: "..S.Pet
-        local PID = game.PlaceId
-        local checked,cursor = {}, ""
-        spawn(function()
-            while S.Active do
-                local url="https://games.roblox.com/v1/games/"..PID.."/servers/Public?sortOrder=Asc&limit=100"
-                if cursor~="" then url=url.."&cursor="..cursor end
-                local success,res = pcall(function() return HS:GetAsync(url) end)
-                if not success then 
-                    logLbl.Text = "Fehler beim Abrufen der Serverliste"
-                    wait(5) 
-                    continue 
-                end
-                local data
-                local ok,err = pcall(function() data=HS:JSONDecode(res) end)
-                if not ok then 
-                    logLbl.Text = "JSON Fehler: "..err
-                    wait(5) 
-                    continue 
-                end
-                cursor = data.nextPageCursor or ""
-                if data.data then
-                    for _,s in pairs(data.data) do
-                        if not checked[s.id] then
-                            checked[s.id]=true
-                            logLbl.Text = "Prüfe ServerID: "..s.id.." Spieler: "..s.playing
-                            -- Hier könntest du später erweitern: Pets im Server prüfen via API
-                            pcall(function() TS:TeleportToPlaceInstance(PID,s.id,P) end)
-                            logLbl.Text = "Teleportiert zu ServerID: "..s.id
-                            return
-                        end
+-- =======================
+-- Hilfsfunktion: prüft Base nach Pet
+-- =======================
+local function baseHasPet(petName)
+    for _, base in pairs(Workspace:GetChildren()) do
+        if base:IsA("Model") or base:IsA("Folder") then
+            for _, obj in pairs(base:GetDescendants()) do
+                if (obj:IsA("StringValue") or obj:IsA("ObjectValue") or obj:IsA("IntValue") or obj:IsA("NumberValue")) then
+                    local ok, val = pcall(function() return tostring(obj.Value) end)
+                    if ok and val:lower():match(petName:lower()) then
+                        return true, base.Name
+                    end
+                elseif obj:IsA("MeshPart") or obj:IsA("Part") then
+                    if obj.Name:lower():match(petName:lower()) then
+                        return true, base.Name
                     end
                 end
-                if cursor=="" then 
-                    logLbl.Text = "Keine weiteren Server, retry in 5 Sekunden..." 
-                    wait(5) 
-                    cursor=""
-                end
-                wait(1)
             end
+        end
+    end
+    return false, nil
+end
+
+-- =======================
+-- Auto-Pet-Finder / Server-Hop
+-- =======================
+local function startFinder()
+    if Svt.FinderActive then return end
+    Svt.FinderActive = true
+    print("✅ Auto-Finder gestartet für Pet:", Svt.SelectedPet)
+
+    local found, baseName = baseHasPet(Svt.SelectedPet)
+    if found then
+        print("✅ Pet bereits im aktuellen Server in Base:", baseName)
+        Svt.FinderActive = false
+        return
+    end
+
+    local PlaceId = game.PlaceId
+    local serversChecked = {}
+    local pageCursor = ""
+    local attempts = 0
+
+    spawn(function()
+        while Svt.FinderActive and attempts < Svt.maxAttempts do
+            local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+            if pageCursor ~= "" then url = url.."&cursor="..pageCursor end
+
+            local success, response = pcall(function() return HttpService:GetAsync(url) end)
+            if not success then
+                warn("❌ Fehler beim Abrufen Serverliste:", response)
+                wait(5)
+                continue
+            end
+
+            local data
+            local ok,jsonErr = pcall(function() data = HttpService:JSONDecode(response) end)
+            if not ok then
+                warn("❌ Fehler beim JSON-Parsing:", jsonErr)
+                wait(5)
+                continue
+            end
+
+            pageCursor = data.nextPageCursor or ""
+
+            if not data.data or #data.data == 0 then
+                print("⚠️ Keine Server in dieser Seite verfügbar")
+                wait(5)
+                continue
+            end
+
+            table.sort(data.data, function(a,b) return (a.playing or 0) > (b.playing or 0) end)
+
+            for _, server in pairs(data.data) do
+                local sid = server.id
+                if not serversChecked[sid] and (server.playing or 0) >= Svt.minPlayers then
+                    serversChecked[sid] = true
+                    attempts = attempts + 1
+                    print(("[Finder] Versuch %d/%d → ServerID: %s (Spieler: %d)"):format(attempts, Svt.maxAttempts, sid, server.playing or 0))
+
+                    local hopSuccess, hopErr = pcall(function()
+                        TeleportService:TeleportToPlaceInstance(PlaceId, sid, LP)
+                    end)
+                    if not hopSuccess then
+                        warn("❌ Fehler beim Hoppen:", hopErr)
+                    end
+
+                    return
+                end
+            end
+
+            if pageCursor == "" then
+                print("⚠️ Keine weiteren Server verfügbar, retry in 5 Sekunden...")
+                wait(5)
+                pageCursor = ""
+            end
+
+            wait(1)
+        end
+
+        if attempts >= Svt.maxAttempts then
+            print("⚠️ Max Attempts erreicht, Finder stoppt")
+            Svt.FinderActive = false
+        end
+    end)
+end
+
+-- =======================
+-- GUI für Pet-Auswahl (scrollbar)
+-- =======================
+local function createUI()
+    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+    pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
+
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "GicaHubUI"
+    screen.Parent = parent
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0,340,0,500)
+    frame.Position = UDim2.new(0.5,-170,0.5,-250)
+    frame.BackgroundColor3 = Color3.fromRGB(28,6,40)
+    frame.Parent = screen
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1,-20,0,28)
+    title.Position = UDim2.new(0,10,0,10)
+    title.BackgroundTransparency = 1
+    title.Text = "Gica Hub Pet-Hopper"
+    title.TextColor3 = Color3.fromRGB(255,255,255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.Parent = frame
+
+    -- ScrollFrame für alle Pets
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1,-20,1,-80)
+    scrollFrame.Position = UDim2.new(0,10,0,50)
+    scrollFrame.CanvasSize = UDim2.new(0,0,0,#availablePets*35)
+    scrollFrame.ScrollBarThickness = 8
+    scrollFrame.BackgroundTransparency = 1
+    scrollFrame.Parent = frame
+
+    local uiListLayout = Instance.new("UIListLayout")
+    uiListLayout.Parent = scrollFrame
+    uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    uiListLayout.Padding = UDim.new(0,5)
+
+    for i, petName in ipairs(availablePets) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1,0,0,28)
+        btn.Text = petName
+        btn.BackgroundColor3 = Color3.fromRGB(80,0,150)
+        btn.TextColor3 = Color3.fromRGB(255,255,255)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 16
+        btn.Parent = scrollFrame
+
+        btn.MouseButton1Click:Connect(function()
+            Svt.SelectedPet = petName
+            print("✅ Pet ausgewählt:", Svt.SelectedPet)
         end)
     end
 
-    local btn=Instance.new("TextButton",f)
-    btn.Size=UDim2.new(0.8,0,0.2,0)
-    btn.Position=UDim2.new(0.1,0,0.85,0)
-    btn.Text="Start Finder"
-    btn.Font=Enum.Font.GothamBold
-    btn.TextSize=20
-    btn.TextColor3=Color3.fromRGB(255,255,255)
-    btn.BackgroundColor3=Color3.fromRGB(80,0,150)
-    btn.MouseButton1Click:Connect(Finder)
+    -- Start Button
+    local finderBtn = Instance.new("TextButton")
+    finderBtn.Size = UDim2.new(1,-20,0,32)
+    finderBtn.Position = UDim2.new(0,10,1,-40)
+    finderBtn.AnchorPoint = Vector2.new(0,0)
+    finderBtn.Text = "Start Auto-Finder"
+    finderBtn.BackgroundColor3 = Color3.fromRGB(0,150,80)
+    finderBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    finderBtn.Font = Enum.Font.GothamBold
+    finderBtn.TextSize = 16
+    finderBtn.Parent = frame
+
+    finderBtn.MouseButton1Click:Connect(startFinder)
 end
 
-UI()
-print("✅ Gica Hub v5 Mobile – Echte Pets mit Live-Log ready.")
+-- =======================
+-- Auto-Start beim Join
+-- =======================
+Players.PlayerAdded:Connect(function(player)
+    if player == LP then
+        wait(2)
+        spawn(startFinder)
+    end
+end)
+
+-- Start GUI & initial Finder Check
+createUI()
+spawn(startFinder)
+
+print("✅ Gica Hub v5 Mobile Auto-Pet-Hopper ready. Script completed.")
