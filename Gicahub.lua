@@ -1,19 +1,14 @@
--- 🌌 Gica Hub v5 ultra compact (loadstring-ready)
--- ✅ Fallback UI & Kavo UI (mobilfreundlich)
--- 🔹 Midnight Theme
-
--- 🔹 Services
+-- 🌌 Gica Hub v5 – Kavo UI + Fallback UI (Loadstring-ready)
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 
--- 🔹 LocalPlayer & Settings
 local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local SETTINGS_FILE = "GicaHubSettings.json"
 local Svt = {WalkSpeed=16, FlySpeed=2}
 
--- 🔹 Safe file API
+-- Safe file API
 local has_isfile = type(isfile)=="function"
 local has_readfile = type(readfile)=="function"
 local has_writefile = type(writefile)=="function"
@@ -29,7 +24,7 @@ local function Save()
     end
 end
 
--- 🔹 Robust HTTP GET
+-- Robust HTTP GET
 local function http_get(url)
     local ok,res
     if pcall(function() return game:HttpGet(url) end) then
@@ -47,18 +42,8 @@ local function http_get(url)
     return nil
 end
 
--- 🔹 Load Kavo UI
-local Lib
-do
-    local body = http_get("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua")
-    if body then
-        local ok, lib = pcall(function() return loadstring(body)() end)
-        if ok then Lib = lib end
-    end
-end
-
--- 🔹 Fallback UI (mobilfreundlich, verschiebbar, minimierbar)
-local function create_simple_ui()
+-- Fallback UI
+local function create_fallback_ui()
     local pg = LP:WaitForChild("PlayerGui")
     local screen = Instance.new("ScreenGui")
     screen.Name = "GicaHubUI"
@@ -67,10 +52,9 @@ local function create_simple_ui()
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0,300,0,260)
     frame.Position = UDim2.new(0.5,-150,0.5,-130)
-    frame.BackgroundColor3 = Color3.fromRGB(10,10,30) -- Midnight
+    frame.BackgroundColor3 = Color3.fromRGB(10,10,30)
     frame.Parent = screen
 
-    -- Titelbar
     local titleBar = Instance.new("Frame")
     titleBar.Size = UDim2.new(1,0,0,30)
     titleBar.Position = UDim2.new(0,0,0,0)
@@ -86,7 +70,6 @@ local function create_simple_ui()
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = titleBar
 
-    -- Minimieren Button
     local minBtn = Instance.new("TextButton")
     minBtn.Size = UDim2.new(0,30,0,30)
     minBtn.Position = UDim2.new(1,-35,0,0)
@@ -99,45 +82,56 @@ local function create_simple_ui()
     minBtn.MouseButton1Click:Connect(function()
         minimized = not minimized
         for _,child in pairs(frame:GetChildren()) do
-            if child ~= titleBar then
-                child.Visible = not minimized
-            end
+            if child ~= titleBar then child.Visible = not minimized end
         end
         frame.Size = minimized and UDim2.new(0,300,0,30) or UDim2.new(0,300,0,260)
     end)
 
-    -- Drag Funktion
-    local dragging, dragInput, dragStart, startPos
-    local function update(input)
-        local delta = input.Position - dragStart
-        frame.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
+    -- Drag
+    local function dragFrame(frame, titleBar)
+        local dragging, dragInput, dragStart, startPos
+        local function update(input)
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+        titleBar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = frame.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then dragging = false end
+                end)
+            end
+        end)
+        titleBar.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+                dragInput = input
+            end
+        end)
+        RunService.RenderStepped:Connect(function()
+            if dragging and dragInput then update(dragInput) end
+        end)
     end
+    dragFrame(frame, titleBar)
 
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
+    -- WalkSpeed
+    local function setWalkSpeed(speed)
+        Svt.WalkSpeed = speed
+        Save()
+        local function apply(c)
+            local hum = c:WaitForChild("Humanoid",5)
+            if hum then hum.WalkSpeed = speed end
         end
-    end)
-    titleBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-    RunService.RenderStepped:Connect(function()
-        if dragging and dragInput then update(dragInput) end
-    end)
+        local char = LP.Character or LP.CharacterAdded:Wait()
+        apply(char)
+        LP.CharacterAdded:Connect(apply)
+    end
 
     local function createButton(text,posY,callback)
         local btn = Instance.new("TextButton")
@@ -150,38 +144,29 @@ local function create_simple_ui()
         btn.MouseButton1Click:Connect(callback)
     end
 
-    -- WalkSpeed Button
-    createButton("Speed 100",40,function()
-        local c = LP.Character or LP.CharacterAdded:Wait()
-        local hum = c:FindFirstChild("Humanoid")
-        if hum then hum.WalkSpeed=100 Svt.WalkSpeed=100 Save() end
+    createButton("Speed 100",40,function() setWalkSpeed(100) end)
+    local wsBox = Instance.new("TextBox")
+    wsBox.Size = UDim2.new(1,-20,0,30)
+    wsBox.Position = UDim2.new(0,10,0,80)
+    wsBox.PlaceholderText = "WalkSpeed eingeben"
+    wsBox.BackgroundColor3 = Color3.fromRGB(30,30,60)
+    wsBox.TextColor3 = Color3.fromRGB(200,200,255)
+    wsBox.Parent = frame
+    wsBox.FocusLost:Connect(function()
+        local val = tonumber(wsBox.Text)
+        if val then setWalkSpeed(val) end
     end)
 
-    -- WalkSpeed Slider (TextBox)
-    local slider = Instance.new("TextBox")
-    slider.Size = UDim2.new(1,-20,0,30)
-    slider.Position = UDim2.new(0,10,0,80)
-    slider.PlaceholderText = "WalkSpeed eingeben"
-    slider.BackgroundColor3 = Color3.fromRGB(30,30,60)
-    slider.TextColor3 = Color3.fromRGB(200,200,255)
-    slider.Parent = frame
-    slider.FocusLost:Connect(function()
-        local val = tonumber(slider.Text)
-        local c = LP.Character or LP.CharacterAdded:Wait()
-        local hum = c:FindFirstChild("Humanoid")
-        if val and hum then hum.WalkSpeed=val Svt.WalkSpeed=val Save() end
-    end)
-
-    -- Teleport Box
-    local tpbox = Instance.new("TextBox")
-    tpbox.Size = UDim2.new(1,-20,0,30)
-    tpbox.Position = UDim2.new(0,10,0,120)
-    tpbox.PlaceholderText = "Spielername"
-    tpbox.BackgroundColor3 = Color3.fromRGB(30,30,60)
-    tpbox.TextColor3 = Color3.fromRGB(200,200,255)
-    tpbox.Parent = frame
-    tpbox.FocusLost:Connect(function()
-        local n = tpbox.Text
+    -- Teleport
+    local tpBox = Instance.new("TextBox")
+    tpBox.Size = UDim2.new(1,-20,0,30)
+    tpBox.Position = UDim2.new(0,10,0,120)
+    tpBox.PlaceholderText = "Spielername"
+    tpBox.BackgroundColor3 = Color3.fromRGB(30,30,60)
+    tpBox.TextColor3 = Color3.fromRGB(200,200,255)
+    tpBox.Parent = frame
+    tpBox.FocusLost:Connect(function()
+        local n = tpBox.Text
         local target = Players:FindFirstChild(n)
         local c = LP.Character or LP.CharacterAdded:Wait()
         local hrp = c:FindFirstChild("HumanoidRootPart")
@@ -190,7 +175,7 @@ local function create_simple_ui()
         end
     end)
 
-    -- Fly Button
+    -- Fly
     local fly=false
     local FS=Svt.FlySpeed
     local BG,BV,hbConn
@@ -225,54 +210,59 @@ local function create_simple_ui()
         end
     end
     flyBtn.MouseButton1Click:Connect(toggleFly)
+
+    -- FlySpeed Slider
+    local fsBox = Instance.new("TextBox")
+    fsBox.Size = UDim2.new(1,-20,0,30)
+    fsBox.Position = UDim2.new(0,10,0,220)
+    fsBox.PlaceholderText = "FlySpeed eingeben"
+    fsBox.BackgroundColor3 = Color3.fromRGB(30,30,60)
+    fsBox.TextColor3 = Color3.fromRGB(200,200,255)
+    fsBox.Parent = frame
+    fsBox.FocusLost:Connect(function()
+        local val = tonumber(fsBox.Text)
+        if val then
+            FS = val
+            Svt.FlySpeed = val
+            Save()
+        end
+    end)
 end
 
--- 🔹 Kavo UI Variante (Midnight)
+-- Kavo UI
+local Lib
+do
+    local body = http_get("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua")
+    if body then
+        local ok, lib = pcall(function() return loadstring(body)() end)
+        if ok then Lib = lib end
+    end
+end
+
 if Lib then
     local W = Lib.CreateLib("🌌 Gica Hub",{SchemeColor=Color3.fromRGB(0,150,255),Background=Color3.fromRGB(10,10,30),Header=Color3.fromRGB(0,150,255),TextColor=Color3.fromRGB(200,200,255),ElementColor=Color3.fromRGB(20,20,50)})
     local MT = W:NewTab("Main")
-    local Fd = MT:NewSection("Finder")
     local Sp = MT:NewSection("Speed")
     local TP = MT:NewSection("Teleport")
     local Fy = MT:NewSection("Fly")
 
-    -- Finder (Server Hop ersetzt)
-    Fd:NewButton("Finder","",function()
-        spawn(function()
-            local servers={}
-            local ok,res=pcall(function()
-                return http_get("https://games.roblox.com/v1/games/"..tostring(game.PlaceId).."/servers/Public?sortOrder=Asc&limit=100")
-            end)
-            if ok and res then
-                local success,data=pcall(function() return HttpService:JSONDecode(res) end)
-                if success and type(data.data)=="table" then
-                    for _,v in pairs(data.data) do
-                        if v.playing<v.maxPlayers and v.id~=game.JobId then
-                            table.insert(servers,v.id)
-                        end
-                    end
-                    if #servers>0 then
-                        TeleportService:TeleportToPlaceInstance(game.PlaceId,servers[math.random(1,#servers)],LP)
-                    end
-                end
-            end
-        end)
-    end)
-
-    -- Speed
     Sp:NewButton("Speed 100","",function()
         local c = LP.Character or LP.CharacterAdded:Wait()
         local hum = c:FindFirstChild("Humanoid")
-        if hum then hum.WalkSpeed=100 Svt.WalkSpeed=100 Save() end
+        if hum then hum.WalkSpeed = 100 Svt.WalkSpeed = 100 Save() end
     end)
+
     Sp:NewSlider("WalkSpeed","",500,0,function(s)
         local c = LP.Character or LP.CharacterAdded:Wait()
         local hum = c:FindFirstChild("Humanoid")
-        if hum then hum.WalkSpeed=s Svt.WalkSpeed=s Save() end
+        if hum then hum.WalkSpeed = s Svt.WalkSpeed = s Save() end
     end)
-    LP.CharacterAdded:Connect(function(c) c:WaitForChild("Humanoid").WalkSpeed=Svt.WalkSpeed end)
 
-    -- Teleport
+    LP.CharacterAdded:Connect(function(c)
+        local hum = c:WaitForChild("Humanoid",5)
+        if hum then hum.WalkSpeed = Svt.WalkSpeed end
+    end)
+
     TP:NewTextbox("Zu Spieler","",function(n)
         local t = Players:FindFirstChild(n)
         local c = LP.Character or LP.CharacterAdded:Wait()
@@ -282,61 +272,45 @@ if Lib then
         end
     end)
 
-    -- Fly Fenster
-    do
-        local fly=false
-        local FS=Svt.FlySpeed
-        local BG,BV,hbConn
-        local flyGui
-        Fy:NewButton("Open Fly Window","",function()
-            local pg = LP:WaitForChild("PlayerGui")
-            local screen = Instance.new("ScreenGui")
-            screen.Name = "GicaFlyWindow"
-            screen.Parent = pg
+    local fly = false
+    local FS = Svt.FlySpeed
+    local BG,BV,hbConn
 
-            flyGui = Instance.new("TextButton")
-            flyGui.Size = UDim2.new(0,120,0,50)
-            flyGui.Position = UDim2.new(0.5,-60,0.2,0)
-            flyGui.Text = "Start Fly"
-            flyGui.BackgroundColor3 = Color3.fromRGB(0,150,255)
-            flyGui.TextColor3 = Color3.fromRGB(0,0,0)
-            flyGui.Parent = screen
-
-            local function toggleFly()
-                local c = LP.Character or LP.CharacterAdded:Wait()
-                local hrp = c:WaitForChild("HumanoidRootPart",5)
-                if not hrp then return end
-                fly = not fly
-                if fly then
-                    BG=Instance.new("BodyGyro",hrp)
-                    BV=Instance.new("BodyVelocity",hrp)
-                    BG.P=9e4 BG.MaxTorque=Vector3.new(9e9,9e9,9e9)
-                    BV.MaxForce=Vector3.new(9e9,9e9,9e9)
-                    hbConn=RunService.Heartbeat:Connect(function()
-                        local cam=workspace.CurrentCamera
-                        if cam then BG.CFrame=cam.CFrame BV.Velocity=cam.CFrame.LookVector*(FS*50) end
-                    end)
-                    flyGui.Text="Stop Fly"
-                else
-                    if hbConn then hbConn:Disconnect() end
-                    if BG then BG:Destroy() end
-                    if BV then BV:Destroy() end
-                    flyGui.Text="Start Fly"
+    Fy:NewButton("Start Fly","",function()
+        local c = LP.Character or LP.CharacterAdded:Wait()
+        local hrp = c:WaitForChild("HumanoidRootPart",5)
+        if not hrp then return end
+        fly = not fly
+        if fly then
+            BG = Instance.new("BodyGyro",hrp)
+            BV = Instance.new("BodyVelocity",hrp)
+            BG.P=9e4 BG.MaxTorque=Vector3.new(9e9,9e9,9e9)
+            BV.MaxForce=Vector3.new(9e9,9e9,9e9)
+            hbConn = RunService.Heartbeat:Connect(function()
+                local cam = workspace.CurrentCamera
+                if cam then
+                    BG.CFrame = cam.CFrame
+                    BV.Velocity = cam.CFrame.LookVector * (FS*50)
                 end
-            end
-            flyGui.MouseButton1Click:Connect(toggleFly)
-        end)
+            end)
+        else
+            if hbConn then hbConn:Disconnect() end
+            if BG then BG:Destroy() end
+            if BV then BV:Destroy() end
+        end
+    end)
 
-        Fy:NewSlider("FlySpeed","",10,1,function(s)
-            FS=s Svt.FlySpeed=s Save()
-        end)
-    end
+    Fy:NewSlider("FlySpeed","",50,1,function(s)
+        FS = s
+        Svt.FlySpeed = s
+        Save()
+    end)
 end
 
--- 🔹 Fallback, falls Kavo nicht geladen
-if not Lib then 
+-- Fallback, falls Kavo UI nicht lädt
+if not Lib then
     print("[Gica Hub] Kavo UI konnte nicht geladen werden, Fallback UI aktiviert")
-    create_simple_ui() 
+    create_fallback_ui()
 end
 
 print("✅ Gica Hub v5 ultra loaded!")
