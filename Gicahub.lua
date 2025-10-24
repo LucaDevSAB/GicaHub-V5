@@ -1,8 +1,7 @@
--- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper + Beste Server + Endlos + Dropdown + Farbcodierter GUI Log
+-- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper (Client-only + Auto-Hop)  
 -- KRNL-kompatibel, startet automatisch beim Join
 
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
@@ -10,7 +9,7 @@ local RunService = game:GetService("RunService")
 local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 -- =======================
--- Alle verfügbaren Steal-a-Brainrot Pets
+-- Alle verfügbaren Pets
 -- =======================
 local availablePets = {
     "Noobini Pizzanini","Lirili Larila","Tim Cheese","FluriFlura","Talpa Di Fero","Svinina Bombardino","Pipi Kiwi",
@@ -26,12 +25,11 @@ local availablePets = {
 -- =======================
 local Svt = {
     SelectedPet = availablePets[1],
-    FinderActive = false,
-    minPlayers = 4
+    FinderActive = false
 }
 
 -- =======================
--- GUI Elemente
+-- GUI & Log Setup
 -- =======================
 local GUI = {}
 local function createUI()
@@ -120,18 +118,11 @@ end
 -- =======================
 local function log(text, type)
     print(text)
-
     if not GUI.logBox then return end
-
-    local color = Color3.fromRGB(255,255,255) -- Info Standard
-    if type == "success" then
-        color = Color3.fromRGB(0,255,0)
-    elseif type == "warn" then
-        color = Color3.fromRGB(255,255,0)
-    elseif type == "error" then
-        color = Color3.fromRGB(255,0,0)
-    end
-
+    local color = Color3.fromRGB(255,255,255)
+    if type == "success" then color = Color3.fromRGB(0,255,0)
+    elseif type == "warn" then color = Color3.fromRGB(255,255,0)
+    elseif type == "error" then color = Color3.fromRGB(255,0,0) end
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1,0,0,20)
     lbl.Position = UDim2.new(0,0,0,GUI.logBox.CanvasSize.Y.Offset)
@@ -142,13 +133,12 @@ local function log(text, type)
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Text = text
     lbl.Parent = GUI.logBox
-
     GUI.logBox.CanvasSize = UDim2.new(0,0,0,GUI.logBox.CanvasSize.Y.Offset + 22)
     GUI.logBox.CanvasPosition = Vector2.new(0, GUI.logBox.CanvasSize.Y.Offset)
 end
 
 -- =======================
--- Hilfsfunktion: prüft Base nach Pet
+-- Prüft Base nach Pet
 -- =======================
 local function baseHasPet(petName)
     for _, base in pairs(Workspace:GetChildren()) do
@@ -156,13 +146,9 @@ local function baseHasPet(petName)
             for _, obj in pairs(base:GetDescendants()) do
                 if (obj:IsA("StringValue") or obj:IsA("ObjectValue") or obj:IsA("IntValue") or obj:IsA("NumberValue")) then
                     local ok, val = pcall(function() return tostring(obj.Value) end)
-                    if ok and val:lower():match(petName:lower()) then
-                        return true, base.Name
-                    end
+                    if ok and val:lower():match(petName:lower()) then return true, base.Name end
                 elseif obj:IsA("MeshPart") or obj:IsA("Part") then
-                    if obj.Name:lower():match(petName:lower()) then
-                        return true, base.Name
-                    end
+                    if obj.Name:lower():match(petName:lower()) then return true, base.Name end
                 end
             end
         end
@@ -171,13 +157,12 @@ local function baseHasPet(petName)
 end
 
 -- =======================
--- Auto-Finder: Beste Server Hop (Endlos)
+-- Auto-Finder + Client-side Hop
 -- =======================
 function startFinder()
     if Svt.FinderActive then return end
     Svt.FinderActive = true
     log("✅ Auto-Finder gestartet für Pet: "..Svt.SelectedPet,"success")
-
     RunService.Heartbeat:Wait()
 
     while Svt.FinderActive do
@@ -186,74 +171,15 @@ function startFinder()
             log("✅ Pet gefunden im Server in Base: "..baseName,"success")
             Svt.FinderActive = false
             break
+        else
+            log("⏳ Pet nicht gefunden, versuche auf zufälligen Server zu hoppen...","warn")
+            -- Client-only Hop zu anderem Server
+            pcall(function()
+                TeleportService:Teleport(game.PlaceId, LP)
+            end)
+            wait(10) -- 10 Sekunden warten, bis Server wechselt
         end
-
-        log("⏳ Pet nicht gefunden, Suche auf besten Servern läuft...","info")
-
-        local PlaceId = game.PlaceId
-        local serversChecked = {}
-        local pageCursor = ""
-
-        while true do
-            local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Desc&limit=100"
-            if pageCursor ~= "" then url = url.."&cursor="..pageCursor end
-
-            local success, response = pcall(function() return HttpService:GetAsync(url) end)
-            if not success then
-                log("❌ Fehler beim Abrufen Serverliste: "..tostring(response),"error")
-                wait(5)
-                continue
-            end
-
-            local data
-            local ok,jsonErr = pcall(function() data = HttpService:JSONDecode(response) end)
-            if not ok then
-                log("❌ Fehler beim JSON-Parsing: "..tostring(jsonErr),"error")
-                wait(5)
-                continue
-            end
-
-            pageCursor = data.nextPageCursor or ""
-
-            if not data.data or #data.data == 0 then
-                log("⚠️ Keine Server in dieser Seite verfügbar, retry in 5 Sekunden...","warn")
-                wait(5)
-                break
-            end
-
-            table.sort(data.data, function(a,b) return (a.playing or 0) > (b.playing or 0) end)
-
-            local hopped = false
-            for _, server in pairs(data.data) do
-                local sid = server.id
-                if not serversChecked[sid] and (server.playing or 0) >= Svt.minPlayers then
-                    serversChecked[sid] = true
-                    log(("[Finder] Hoppen zu ServerID: %s (Spieler: %d)"):format(sid, server.playing or 0),"warn")
-
-                    local hopSuccess, hopErr = pcall(function()
-                        TeleportService:TeleportToPlaceInstance(PlaceId, sid, LP)
-                    end)
-                    if not hopSuccess then
-                        log("❌ Fehler beim Hoppen: "..tostring(hopErr),"error")
-                    end
-
-                    hopped = true
-                    break
-                end
-            end
-
-            if not hopped then
-                if pageCursor == "" then
-                    log("⚠️ Keine weiteren Server verfügbar, retry in 5 Sekunden...","warn")
-                    wait(5)
-                    break
-                end
-            else
-                break
-            end
-
-            wait(1)
-        end
+        wait(5) -- alle 5 Sekunden prüfen
     end
 end
 
@@ -270,4 +196,4 @@ end)
 createUI()
 spawn(startFinder)
 
-log("✅ Gica Hub v5 Mobile Auto-Pet-Hopper ready. Script completed.","success")
+log("✅ Gica Hub v5 Mobile Auto-Pet-Hopper ready. Script completed.","success
