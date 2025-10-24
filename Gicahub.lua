@@ -1,4 +1,4 @@
--- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper mit Key-Schutz und animierter UI
+-- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper mit pulsierender UI und Key-Schutz
 -- KRNL-kompatibel
 
 local Players = game:GetService("Players")
@@ -107,6 +107,14 @@ local function stopFinder()
 end
 
 -- =======================
+-- Button Puls Animation
+-- =======================
+local function pulseButton(btn)
+    local tweenUp = TweenService:Create(btn,TweenInfo.new(0.3,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut,0,true),{BackgroundTransparency=0.5})
+    tweenUp:Play()
+end
+
+-- =======================
 -- Haupt-UI
 -- =======================
 local function createUI()
@@ -164,17 +172,17 @@ local function createUI()
         btnCorner.CornerRadius = UDim.new(0,12)
         btnCorner.Parent = btn
 
-        -- Button Hover Animation
+        -- Button Hover & Click Animation
         btn.MouseEnter:Connect(function()
             TweenService:Create(btn,TweenInfo.new(0.5,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0.4}):Play()
         end)
         btn.MouseLeave:Connect(function()
             TweenService:Create(btn,TweenInfo.new(0.5,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0.0}):Play()
         end)
-
         btn.MouseButton1Click:Connect(function()
             Svt.SelectedPet = petName
             log("✅ Pet ausgewählt: "..Svt.SelectedPet,"success")
+            pulseButton(btn)
         end)
     end
 
@@ -189,7 +197,7 @@ local function createUI()
     startCorner.CornerRadius = UDim.new(0,12)
     startCorner.Parent = startBtn
     startBtn.Parent = frame
-    startBtn.MouseButton1Click:Connect(startFinder)
+    startBtn.MouseButton1Click:Connect(function() startFinder() pulseButton(startBtn) end)
 
     local stopBtn = Instance.new("TextButton")
     stopBtn.Size = UDim2.new(1,-20,0,32)
@@ -201,7 +209,7 @@ local function createUI()
     stopCorner.CornerRadius = UDim.new(0,12)
     stopCorner.Parent = stopBtn
     stopBtn.Parent = frame
-    stopBtn.MouseButton1Click:Connect(stopFinder)
+    stopBtn.MouseButton1Click:Connect(function() stopFinder() pulseButton(stopBtn) end)
 
     -- LogBox
     local logBox = Instance.new("ScrollingFrame")
@@ -273,12 +281,12 @@ local function keyUI()
     button.MouseLeave:Connect(function()
         TweenService:Create(button,TweenInfo.new(0.5,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0.0}):Play()
     end)
-
     button.MouseButton1Click:Connect(function()
         if input.Text == KEY then
             screen:Destroy()
-            createUI() -- jetzt korrekt die Haupt-UI erstellen
+            createUI()
             log("✅ Key korrekt, Willkommen!","success")
+            pulseButton(button)
         else
             local blackScreen = Instance.new("ScreenGui")
             blackScreen.Name = "BlackScreen"
@@ -297,8 +305,4 @@ end
 -- =======================
 -- Start Script
 -- =======================
-keyUI()
-
--- =======================
--- Script completed
--- =======================
+keyUI
