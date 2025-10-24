@@ -1,5 +1,5 @@
--- 🌌 Gica Hub v5 Ultra Compact + ESP + Pros Finder + Fly + Speed + Teleport + Animated UI
--- Kein automatischer Server-Hop mehr beim Start
+-- 🌌 Gica Hub v5 Ultra Compact - KRNL-friendly + Finder-Tab (Finder startet nur per Klick)
+-- Kein automatischer Server-Hop beim Start
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -49,7 +49,7 @@ local function createESP(plr)
     plr.CharacterAdded:Connect(addHighlight)
     plr.CharacterRemoving:Connect(function()
         if ESP_Objects[plr] then
-            ESP_Objects[plr]:Destroy()
+            pcall(function() ESP_Objects[plr]:Destroy() end)
             ESP_Objects[plr] = nil
         end
     end)
@@ -64,19 +64,17 @@ local placeId = game.PlaceId
 local function markVisited(id)
     if not id then return end
     Svt.VisitedServers = Svt.VisitedServers or {}
-    Svt.VisitedServers[id] = true
+    Svt.VisitedServers[tostring(id)] = true
     Save()
 end
 
 local function isVisited(id)
-    return Svt.VisitedServers and Svt.VisitedServers[id]
+    return Svt.VisitedServers and Svt.VisitedServers[tostring(id)]
 end
 
 local function http_get(url)
     local ok,res
-    if pcall(function() return game:HttpGet(url) end) then
-        ok,res = pcall(function() return game:HttpGet(url) end)
-    end
+    ok,res = pcall(function() return game:HttpGet(url) end)
     if ok and res then return res end
     if type(syn)=="table" and type(syn.request)=="function" then
         ok,res=pcall(function() return syn.request({Url=url,Method="GET"}).Body end)
@@ -135,7 +133,7 @@ local function getPlayerEstimatedIncome(plr)
         return nil
     end
     local function inspectAttributes(p)
-        local attrs = p:GetAttributes and p:GetAttributes() or {}
+        local attrs = p.GetAttributes and p:GetAttributes() or {}
         for k,v in pairs(attrs) do
             local key = tostring(k):lower()
             if key:match("income") or key:match("earn") or key:match("pet") or key:match("value") or key:match("worth") then
@@ -183,48 +181,79 @@ local function startProsScanOnceAndTeleport()
 end
 
 -- ==================== UI ====================
+local function getGuiParent()
+    -- robust parenting for KRNL: try PlayerGui, then gethui(), then CoreGui
+    local parentTo = nil
+    local success, pg = pcall(function() return LP:FindFirstChild("PlayerGui") end)
+    if success and pg then
+        parentTo = pg
+    else
+        if type(gethui) == "function" then
+            local ok, g = pcall(function() return gethui() end)
+            if ok and g then parentTo = g end
+        end
+        if not parentTo then
+            local ok2, core = pcall(function() return game:GetService("CoreGui") end)
+            if ok2 and core then parentTo = core end
+        end
+    end
+    -- ultimate fallback
+    if not parentTo then parentTo = workspace end
+    return parentTo
+end
+
 local function createUI()
-    local pg = LP:WaitForChild("PlayerGui")
+    local parentTo = getGuiParent()
+
     local screen = Instance.new("ScreenGui")
     screen.Name = "GicaHubUI"
-    screen.Parent = pg
+    screen.Parent = parentTo
+    screen.ResetOnSpawn = false
+    screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screen.Enabled = true
+    screen.DisplayOrder = 9999
 
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0,340,0,420)
-    frame.Position = UDim2.new(0.5,-170,0.5,-210)
+    frame.Size = UDim2.new(0,380,0,460)
+    frame.Position = UDim2.new(0.5,-190,0.5,-230)
     frame.BackgroundColor3 = Color3.fromRGB(30,0,40)
     frame.BackgroundTransparency = 0.2
     frame.Parent = screen
     frame.ClipsDescendants = true
+    frame.Active = true
+    frame.Name = "MainFrame"
 
     -- Title
     local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1,0,0,30)
+    titleBar.Size = UDim2.new(1,0,0,34)
     titleBar.Position = UDim2.new(0,0,0,0)
     titleBar.BackgroundColor3 = Color3.fromRGB(60,0,100)
     titleBar.Parent = frame
+    titleBar.Active = true
 
     local titleLabel = Instance.new("TextLabel")
-    titleLabel.Size = UDim2.new(1,-70,1,0)
+    titleLabel.Size = UDim2.new(1,-110,1,0)
     titleLabel.Position = UDim2.new(0,10,0,0)
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = "🌌 Gica Hub"
     titleLabel.TextColor3 = Color3.fromRGB(220,200,255)
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 18
     titleLabel.Parent = titleBar
 
     -- Close & Minimize Buttons
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0,30,0,30)
-    closeBtn.Position = UDim2.new(1,-35,0,0)
+    closeBtn.Size = UDim2.new(0,36,0,30)
+    closeBtn.Position = UDim2.new(1,-40,0,2)
     closeBtn.Text = "X"
     closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
     closeBtn.BackgroundColor3 = Color3.fromRGB(40,0,60)
     closeBtn.Parent = titleBar
 
     local minBtn = Instance.new("TextButton")
-    minBtn.Size = UDim2.new(0,30,0,30)
-    minBtn.Position = UDim2.new(1,-70,0,0)
+    minBtn.Size = UDim2.new(0,36,0,30)
+    minBtn.Position = UDim2.new(1,-80,0,2)
     minBtn.Text = "-"
     minBtn.TextColor3 = Color3.fromRGB(255,255,255)
     minBtn.BackgroundColor3 = Color3.fromRGB(40,0,60)
@@ -245,38 +274,141 @@ local function createUI()
     miniIconBtn.Text = ""
     miniIconBtn.Parent = miniIcon
 
-    -- Drag
-    local dragging, dragStart, startPos
-    local function drag(input)
-        local delta = input.Position - dragStart
-        frame.Position = UDim2.new(
-            startPos.X.Scale,
-            startPos.X.Offset + delta.X,
-            startPos.Y.Scale,
-            startPos.Y.Offset + delta.Y
-        )
+    -- Tabs area
+    local tabBar = Instance.new("Frame")
+    tabBar.Size = UDim2.new(1, -20, 0, 40)
+    tabBar.Position = UDim2.new(0,10,0,40)
+    tabBar.BackgroundTransparency = 1
+    tabBar.Parent = frame
+
+    local function makeTabButton(text, x)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0,120,0,32)
+        btn.Position = UDim2.new(0,x,0,4)
+        btn.Text = text
+        btn.BackgroundColor3 = Color3.fromRGB(70,0,140)
+        btn.TextColor3 = Color3.fromRGB(255,255,255)
+        btn.Parent = tabBar
+        return btn
     end
+
+    local btnMain = makeTabButton("Main", 0)
+    local btnFinder = makeTabButton("Finder", 125)
+    local btnESP = makeTabButton("ESP", 250)
+
+    -- Content container
+    local content = Instance.new("Frame")
+    content.Size = UDim2.new(1,-20,1,-100)
+    content.Position = UDim2.new(0,10,0,90)
+    content.BackgroundTransparency = 1
+    content.Parent = frame
+
+    -- --- Main Tab ---
+    local mainTab = Instance.new("Frame")
+    mainTab.Size = UDim2.new(1,0,1,0)
+    mainTab.BackgroundTransparency = 1
+    mainTab.Parent = content
+
+    local flyBtn = Instance.new("TextButton")
+    flyBtn.Size = UDim2.new(0,150,0,38)
+    flyBtn.Position = UDim2.new(0,10,0,0)
+    flyBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
+    flyBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    flyBtn.Text = "Toggle Fly"
+    flyBtn.Parent = mainTab
+
+    local speedBtn = Instance.new("TextButton")
+    speedBtn.Size = UDim2.new(0,150,0,38)
+    speedBtn.Position = UDim2.new(0,180,0,0)
+    speedBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
+    speedBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    speedBtn.Text = "Speed: "..Svt.WalkSpeed
+    speedBtn.Parent = mainTab
+
+    local tpBtn = Instance.new("TextButton")
+    tpBtn.Size = UDim2.new(0,150,0,38)
+    tpBtn.Position = UDim2.new(0,10,0,56)
+    tpBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
+    tpBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    tpBtn.Text = "Teleport (Click)"
+    tpBtn.Parent = mainTab
+
+    -- --- Finder Tab ---
+    local finderTab = Instance.new("Frame")
+    finderTab.Size = UDim2.new(1,0,1,0)
+    finderTab.BackgroundTransparency = 1
+    finderTab.Visible = false
+    finderTab.Parent = content
+
+    local finderInfo = Instance.new("TextLabel")
+    finderInfo.Size = UDim2.new(1, -20, 0, 60)
+    finderInfo.Position = UDim2.new(0,10,0,0)
+    finderInfo.BackgroundTransparency = 1
+    finderInfo.Text = "Pros Finder scannt Server und teleportiert dich nur wenn du auf Start klickst.\nBesuchte Server werden gespeichert."
+    finderInfo.TextColor3 = Color3.fromRGB(220,220,220)
+    finderInfo.TextWrapped = true
+    finderInfo.Parent = finderTab
+
+    local startFinderBtn = Instance.new("TextButton")
+    startFinderBtn.Size = UDim2.new(0,160,0,38)
+    startFinderBtn.Position = UDim2.new(0,10,0,70)
+    startFinderBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
+    startFinderBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    startFinderBtn.Text = "Start Finder"
+    startFinderBtn.Parent = finderTab
+
+    local stopFinderBtn = Instance.new("TextButton")
+    stopFinderBtn.Size = UDim2.new(0,160,0,38)
+    stopFinderBtn.Position = UDim2.new(0,180,0,70)
+    stopFinderBtn.BackgroundColor3 = Color3.fromRGB(120,0,100)
+    stopFinderBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    stopFinderBtn.Text = "Stop Finder"
+    stopFinderBtn.Parent = finderTab
+
+    -- --- ESP Tab ---
+    local espTab = Instance.new("Frame")
+    espTab.Size = UDim2.new(1,0,1,0)
+    espTab.BackgroundTransparency = 1
+    espTab.Visible = false
+    espTab.Parent = content
+
+    local espInfo = Instance.new("TextLabel")
+    espInfo.Size = UDim2.new(1, -20, 0, 60)
+    espInfo.Position = UDim2.new(0,10,0,0)
+    espInfo.BackgroundTransparency = 1
+    espInfo.Text = "ESP: Highlight für andere Spieler (aktiviert beim Join)."
+    espInfo.TextColor3 = Color3.fromRGB(220,220,220)
+    espInfo.TextWrapped = true
+    espInfo.Parent = espTab
+
+    -- Drag (simpler, robust)
+    local dragging = false
+    local dragStartPos = Vector2.new(0,0)
+    local guiStartPos = frame.Position
+
     titleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
+            dragStartPos = input.Position
+            guiStartPos = frame.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
             end)
         end
     end)
-    titleBar.InputChanged:Connect(function(input)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            input.Changed:Connect(function()
-                if dragging then drag(input) end
-            end)
-        end
-    end)
-    RunService.RenderStepped:Connect(function()
-        if dragging then
-            local pos = UserInputService:GetMouseLocation()
-            drag({Position = Vector2.new(pos.X,pos.Y),Changed={}})
+            local delta = input.Position - dragStartPos
+            frame.Position = UDim2.new(
+                guiStartPos.X.Scale,
+                guiStartPos.X.Offset + delta.X,
+                guiStartPos.Y.Scale,
+                guiStartPos.Y.Offset + delta.Y
+            )
         end
     end)
 
@@ -295,32 +427,30 @@ local function createUI()
 
     -- Close
     closeBtn.MouseButton1Click:Connect(function()
-        frame:Destroy()
-        miniIcon:Destroy()
+        pcall(function() screen:Destroy() end)
     end)
 
-    -- Buttons Container
-    local btnContainer = Instance.new("Frame")
-    btnContainer.Size = UDim2.new(1,-20,1,-50)
-    btnContainer.Position = UDim2.new(0,10,0,40)
-    btnContainer.BackgroundTransparency = 1
-    btnContainer.Parent = frame
+    -- Tab switching
+    local function showTab(tab)
+        mainTab.Visible = false
+        finderTab.Visible = false
+        espTab.Visible = false
+        if tab == "Main" then mainTab.Visible = true
+        elseif tab == "Finder" then finderTab.Visible = true
+        elseif tab == "ESP" then espTab.Visible = true end
+    end
 
-    -- ===== Fly Button =====
-    local flyBtn = Instance.new("TextButton")
-    flyBtn.Size = UDim2.new(0,120,0,35)
-    flyBtn.Position = UDim2.new(0,10,0,0)
-    flyBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
-    flyBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    flyBtn.Text = "Toggle Fly"
-    flyBtn.Parent = btnContainer
+    btnMain.MouseButton1Click:Connect(function() showTab("Main") end)
+    btnFinder.MouseButton1Click:Connect(function() showTab("Finder") end)
+    btnESP.MouseButton1Click:Connect(function() showTab("ESP") end)
+    showTab("Main")
 
+    -- ===== Fly Functionality =====
     local flyActive = false
     local BG,BV,hbConn
-
     local function toggleFly()
         local c = LP.Character or LP.CharacterAdded:Wait()
-        local hrp = c:WaitForChild("HumanoidRootPart",5)
+        local hrp = c:FindFirstChild("HumanoidRootPart") or c:WaitForChild("HumanoidRootPart",5)
         if not hrp then return end
         flyActive = not flyActive
         if flyActive then
@@ -331,8 +461,8 @@ local function createUI()
             BV.MaxForce = Vector3.new(9e9,9e9,9e9)
             hbConn = RunService.Heartbeat:Connect(function()
                 local cam = Workspace.CurrentCamera
+                if not cam then return end
                 local vel = Vector3.new()
-                -- Grappler check
                 local grappler = c:FindFirstChildWhichIsA("Tool")
                 if grappler and grappler.Name:lower():match("grap") then
                     vel = cam.CFrame.LookVector * (Svt.FlySpeed*60)
@@ -344,84 +474,78 @@ local function createUI()
             end)
         else
             if hbConn then hbConn:Disconnect() end
-            if BG then BG:Destroy() end
-            if BV then BV:Destroy() end
+            if BG then pcall(function() BG:Destroy() end) end
+            if BV then pcall(function() BV:Destroy() end) end
         end
     end
     flyBtn.MouseButton1Click:Connect(toggleFly)
 
-    -- ===== Speed Button =====
-    local speedBtn = Instance.new("TextButton")
-    speedBtn.Size = UDim2.new(0,120,0,35)
-    speedBtn.Position = UDim2.new(0,150,0,0)
-    speedBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
-    speedBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    speedBtn.Text = "Speed: "..Svt.WalkSpeed
-    speedBtn.Parent = btnContainer
-
+    -- ===== Speed Functionality =====
     local speedActive = false
     local speedConn
+    local function enableSpeed()
+        local c = LP.Character or LP.CharacterAdded:Wait()
+        local h = c:FindFirstChildOfClass("Humanoid")
+        if not h then return end
+        speedConn = RunService.RenderStepped:Connect(function()
+            if h and h.Parent then
+                h.WalkSpeed = Svt.WalkSpeed
+            end
+        end)
+    end
+    local function disableSpeed()
+        if speedConn then speedConn:Disconnect() speedConn = nil end
+        local c = LP.Character or LP.CharacterAdded:Wait()
+        local h = c:FindFirstChildOfClass("Humanoid")
+        if h then
+            pcall(function() h.WalkSpeed = 16 end)
+        end
+    end
     speedBtn.MouseButton1Click:Connect(function()
         speedActive = not speedActive
-        if speedActive then
-            local c = LP.Character or LP.CharacterAdded:Wait()
-            local h = c:WaitForChild("Humanoid",5)
-            speedConn = RunService.RenderStepped:Connect(function()
-                h.WalkSpeed = Svt.WalkSpeed
-            end)
-        else
-            if speedConn then speedConn:Disconnect() end
-            local c = LP.Character or LP.CharacterAdded:Wait()
-            local h = c:WaitForChild("Humanoid",5)
-            h.WalkSpeed = 16
-        end
+        if speedActive then enableSpeed() else disableSpeed() end
     end)
 
     -- ===== Teleport Button =====
-    local tpBtn = Instance.new("TextButton")
-    tpBtn.Size = UDim2.new(0,120,0,35)
-    tpBtn.Position = UDim2.new(0,10,0,100)
-    tpBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
-    tpBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    tpBtn.Text = "Teleport (Click)"
-    tpBtn.Parent = btnContainer
-
     tpBtn.MouseButton1Click:Connect(function()
         local mouse = LP:GetMouse()
         local c = LP.Character or LP.CharacterAdded:Wait()
-        local hrp = c:WaitForChild("HumanoidRootPart",5)
+        local hrp = c:FindFirstChild("HumanoidRootPart") or c:WaitForChild("HumanoidRootPart",5)
         if not hrp then return end
-        hrp.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0,3,0))
-    end)
-
-    -- ===== Pros Finder Button =====
-    local prosBtn = Instance.new("TextButton")
-    prosBtn.Size = UDim2.new(0,120,0,35)
-    prosBtn.Position = UDim2.new(0,150,0,50)
-    prosBtn.BackgroundColor3 = Color3.fromRGB(80,0,150)
-    prosBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    prosBtn.Text = "Finder"
-    prosBtn.Parent = btnContainer
-
-    prosBtn.MouseButton1Click:Connect(function()
-        if not scanning then
-            scanning = true
-            spawn(startProsScanOnceAndTeleport)
+        if mouse and mouse.Hit then
+            local pos = mouse.Hit.Position + Vector3.new(0,3,0)
+            pcall(function() hrp.CFrame = CFrame.new(pos) end)
         end
     end)
 
-    -- ===== Hover Animations =====
+    -- ===== Finder Start/Stop =====
+    startFinderBtn.MouseButton1Click:Connect(function()
+        if not scanning then
+            scanning = true
+            -- explicit user action: start scanning once
+            spawn(startProsScanOnceAndTeleport)
+        end
+    end)
+    stopFinderBtn.MouseButton1Click:Connect(function()
+        -- stop scanning politely by setting flag; startProsScanOnceAndTeleport respects scanning flag
+        scanning = false
+    end)
+
+    -- ===== Hover Animations (stable) =====
     local function addHover(button)
+        local origSize = button.Size
+        local expanded = UDim2.new(origSize.X.Scale, origSize.X.Offset + 10, origSize.Y.Scale, origSize.Y.Offset + 5)
         button.MouseEnter:Connect(function()
-            button:TweenSize(UDim2.new(0,button.Size.X.Offset+10,0,button.Size.Y.Offset+5),"Out","Quad",0.2,true)
+            pcall(function() button:TweenSize(expanded,"Out","Quad",0.15,true) end)
         end)
         button.MouseLeave:Connect(function()
-            button:TweenSize(UDim2.new(0,120,0,35),"Out","Quad",0.2,true)
+            pcall(function() button:TweenSize(origSize,"Out","Quad",0.15,true) end)
         end)
     end
-    for _,btn in pairs({flyBtn,speedBtn,tpBtn,prosBtn}) do addHover(btn) end
+    for _,btn in pairs({flyBtn,speedBtn,tpBtn,startFinderBtn,stopFinderBtn,btnMain,btnFinder,btnESP}) do addHover(btn) end
 end
 
-createUI()
+-- create UI (protected)
+pcall(createUI)
 
-print("✅ Gica Hub v5 Ultra Compact fully loaded!")
+print("✅ Gica Hub v5 Ultra Compact - KRNL build loaded! Finder startet nur per Klick.")
