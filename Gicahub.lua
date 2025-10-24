@@ -1,4 +1,4 @@
--- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper (Key + Fancy UI + Glow + Sound + Black Screen on Wrong Key)
+-- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper (Key + Fancy UI + Start/Stop Finder + Cooldown)
 -- KRNL-kompatibel
 
 local Players = game:GetService("Players")
@@ -79,27 +79,33 @@ local function startFinder()
     if Svt.FinderActive then return end
     Svt.FinderActive = true
     log("✅ Auto-Finder gestartet für Pet: "..Svt.SelectedPet,"success")
-    RunService.Heartbeat:Wait()
-
-    while Svt.FinderActive do
-        local found, baseName = baseHasPet(Svt.SelectedPet)
-        if found then
-            log("✅ Pet gefunden im Server in Base: "..baseName,"success")
-            Svt.FinderActive = false
-            break
-        else
-            log("⏳ Pet nicht gefunden, hoppe zu anderem Server...","warn")
-            pcall(function()
-                TeleportService:Teleport(game.PlaceId, LP)
-            end)
-            wait(10)
+    spawn(function()
+        while Svt.FinderActive do
+            local found, baseName = baseHasPet(Svt.SelectedPet)
+            if found then
+                log("✅ Pet gefunden im Server in Base: "..baseName,"success")
+                Svt.FinderActive = false
+                break
+            else
+                log("⏳ Pet nicht gefunden, hoppe zu anderem Server...","warn")
+                pcall(function()
+                    TeleportService:Teleport(game.PlaceId, LP)
+                end)
+            end
+            wait(2) -- 2 Sekunden Cooldown nach jedem Server-Check
         end
-        wait(5)
+    end)
+end
+
+local function stopFinder()
+    if Svt.FinderActive then
+        Svt.FinderActive = false
+        log("🛑 Auto-Finder gestoppt","warn")
     end
 end
 
 -- =======================
--- Haupt-UI
+-- Haupt-UI mit Start/Stop Finder
 -- =======================
 local function createUI()
     local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
@@ -130,6 +136,7 @@ local function createUI()
     title.TextSize = 18
     title.Parent = frame
 
+    -- Dropdown für Pets
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Size = UDim2.new(1,-20,0,160)
     scrollFrame.Position = UDim2.new(0,10,0,50)
@@ -159,36 +166,42 @@ local function createUI()
         btnCorner.CornerRadius = UDim.new(0,12)
         btnCorner.Parent = btn
 
-        btn.MouseEnter:Connect(function()
-            btn:TweenSize(UDim2.new(1,0,0,32), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
-            btn.BackgroundColor3 = Color3.fromRGB(200,0,255)
-        end)
-        btn.MouseLeave:Connect(function()
-            btn:TweenSize(UDim2.new(1,0,0,28), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
-            btn.BackgroundColor3 = Color3.fromRGB(120,0,180)
-        end)
-
         btn.MouseButton1Click:Connect(function()
             Svt.SelectedPet = petName
             log("✅ Pet ausgewählt: "..Svt.SelectedPet,"success")
         end)
     end
 
-    local finderBtn = Instance.new("TextButton")
-    finderBtn.Size = UDim2.new(1,-20,0,32)
-    finderBtn.Position = UDim2.new(0,10,0,220)
-    finderBtn.Text = "Start Auto-Finder"
-    finderBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
-    finderBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    local btnCorner2 = Instance.new("UICorner")
-    btnCorner2.CornerRadius = UDim.new(0,12)
-    btnCorner2.Parent = finderBtn
-    finderBtn.Parent = frame
-    finderBtn.MouseButton1Click:Connect(startFinder)
+    -- Start Finder Button
+    local startBtn = Instance.new("TextButton")
+    startBtn.Size = UDim2.new(1,-20,0,32)
+    startBtn.Position = UDim2.new(0,10,0,220)
+    startBtn.Text = "Start Auto-Finder"
+    startBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
+    startBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    local startCorner = Instance.new("UICorner")
+    startCorner.CornerRadius = UDim.new(0,12)
+    startCorner.Parent = startBtn
+    startBtn.Parent = frame
+    startBtn.MouseButton1Click:Connect(startFinder)
 
+    -- Stop Finder Button
+    local stopBtn = Instance.new("TextButton")
+    stopBtn.Size = UDim2.new(1,-20,0,32)
+    stopBtn.Position = UDim2.new(0,10,0,260)
+    stopBtn.Text = "Stop Auto-Finder"
+    stopBtn.BackgroundColor3 = Color3.fromRGB(255,0,0)
+    stopBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    local stopCorner = Instance.new("UICorner")
+    stopCorner.CornerRadius = UDim.new(0,12)
+    stopCorner.Parent = stopBtn
+    stopBtn.Parent = frame
+    stopBtn.MouseButton1Click:Connect(stopFinder)
+
+    -- LogBox
     local logBox = Instance.new("ScrollingFrame")
-    logBox.Size = UDim2.new(1,-20,0,240)
-    logBox.Position = UDim2.new(0,10,0,260)
+    logBox.Size = UDim2.new(1,-20,0,180)
+    logBox.Position = UDim2.new(0,10,0,300)
     logBox.CanvasSize = UDim2.new(0,0,0,0)
     logBox.ScrollBarThickness = 8
     logBox.BackgroundColor3 = Color3.fromRGB(60,0,100)
@@ -203,97 +216,8 @@ local function createUI()
 end
 
 -- =======================
--- Key UI
+-- Script starten
 -- =======================
-local function keyUI()
-    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
-    pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
-
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "GicaHubUI"
-    screen.Parent = parent
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0,300,0,200)
-    frame.Position = UDim2.new(0.5,-150,0.5,-100)
-    frame.BackgroundColor3 = Color3.fromRGB(50,0,80)
-    frame.BackgroundTransparency = 0.2
-    frame.BorderSizePixel = 0
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0,20)
-    corner.Parent = frame
-    frame.Parent = screen
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1,0,0,40)
-    title.Position = UDim2.new(0,0,0,10)
-    title.Text = "Enter Key"
-    title.TextColor3 = Color3.fromRGB(255,200,255)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
-    title.BackgroundTransparency = 1
-    title.Parent = frame
-
-    local input = Instance.new("TextBox")
-    input.Size = UDim2.new(1,-40,0,32)
-    input.Position = UDim2.new(0,20,0,70)
-    input.PlaceholderText = "Key"
-    input.Text = ""
-    input.TextColor3 = Color3.fromRGB(255,255,255)
-    input.BackgroundColor3 = Color3.fromRGB(100,0,150)
-    input.ClearTextOnFocus = true
-    local inputCorner = Instance.new("UICorner")
-    inputCorner.CornerRadius = UDim.new(0,12)
-    inputCorner.Parent = input
-    input.Parent = frame
-
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1,-40,0,32)
-    button.Position = UDim2.new(0,20,0,120)
-    button.Text = "Submit"
-    button.BackgroundColor3 = Color3.fromRGB(0,150,255)
-    button.TextColor3 = Color3.fromRGB(255,255,255)
-    local btnCorner = Instance.new("UICorner")
-    btnCorner.CornerRadius = UDim.new(0,12)
-    btnCorner.Parent = button
-    button.Parent = frame
-
-    button.MouseButton1Click:Connect(function()
-        if input.Text == "GicaHub" then
-            -- Richtiger Key: TY Animation
-            local msg = Instance.new("TextLabel")
-            msg.Size = UDim2.new(1,0,1,0)
-            msg.Position = UDim2.new(0,0,0,0)
-            msg.BackgroundTransparency = 1
-            msg.TextColor3 = Color3.fromRGB(255,200,255)
-            msg.TextScaled = true
-            msg.Font = Enum.Font.GothamBold
-            msg.Text = "TY For purchasing our Service"
-            msg.Parent = frame
-            wait(1)
-            frame:Destroy()
-            createUI()
-            spawn(startFinder)
-            log("✅ Gica Hub v5 Mobile Auto-Pet-Hopper ready. Script completed.","success")
-        else
-            -- Falscher Key: Schwarzer Bildschirm
-            local blackScreen = Instance.new("ScreenGui")
-            blackScreen.Name = "GicaHubUI"
-            blackScreen.Parent = parent
-            local blackFrame = Instance.new("Frame")
-            blackFrame.Size = UDim2.new(1,0,1,0)
-            blackFrame.Position = UDim2.new(0,0,0,0)
-            blackFrame.BackgroundColor3 = Color3.fromRGB(0,0,0)
-            blackFrame.BorderSizePixel = 0
-            blackFrame.Parent = blackScreen
-            log("❌ Falscher Key! UI blockiert, bitte Roblox neu starten.","error")
-        end
-    end)
-end
-
--- =======================
--- Script Start
--- =======================
-keyUI()
+createUI()
 
 -- Script completed
