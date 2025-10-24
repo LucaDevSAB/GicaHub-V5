@@ -4,7 +4,6 @@
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
@@ -89,7 +88,7 @@ local function startFinder()
                 Svt.FinderActive=false
                 break
             else
-                log("⏳ Pet nicht gefunden, Hoppen zum nächsten Server...","warn")
+                log("⏳ Pet nicht gefunden, nächster Server...","warn")
                 pcall(function()
                     TeleportService:Teleport(game.PlaceId, LP)
                 end)
@@ -143,7 +142,6 @@ local function createUI()
     title.TextSize = 18
     title.Parent = frame
 
-    -- Dropdown ScrollFrame
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Size = UDim2.new(1,-20,0,160)
     scrollFrame.Position = UDim2.new(0,10,0,50)
@@ -172,7 +170,6 @@ local function createUI()
         btnCorner.CornerRadius = UDim.new(0,12)
         btnCorner.Parent = btn
 
-        -- Button Hover & Click Animation
         btn.MouseEnter:Connect(function()
             TweenService:Create(btn,TweenInfo.new(0.5,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0.4}):Play()
         end)
@@ -186,7 +183,6 @@ local function createUI()
         end)
     end
 
-    -- Start / Stop Buttons
     local startBtn = Instance.new("TextButton")
     startBtn.Size = UDim2.new(1,-20,0,32)
     startBtn.Position = UDim2.new(0,10,0,220)
@@ -211,7 +207,6 @@ local function createUI()
     stopBtn.Parent = frame
     stopBtn.MouseButton1Click:Connect(function() stopFinder() pulseButton(stopBtn) end)
 
-    -- LogBox
     local logBox = Instance.new("ScrollingFrame")
     logBox.Size = UDim2.new(1,-20,0,160)
     logBox.Position = UDim2.new(0,10,0,310)
@@ -275,18 +270,10 @@ local function keyUI()
     btnCorner.Parent = button
     button.Parent = frame
 
-    button.MouseEnter:Connect(function()
-        TweenService:Create(button,TweenInfo.new(0.5,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0.4}):Play()
-    end)
-    button.MouseLeave:Connect(function()
-        TweenService:Create(button,TweenInfo.new(0.5,Enum.EasingStyle.Sine,Enum.EasingDirection.InOut),{BackgroundTransparency=0.0}):Play()
-    end)
     button.MouseButton1Click:Connect(function()
         if input.Text == KEY then
             screen:Destroy()
             createUI()
-            log("✅ Key korrekt, Willkommen!","success")
-            pulseButton(button)
         else
             local blackScreen = Instance.new("ScreenGui")
             blackScreen.Name = "BlackScreen"
@@ -305,4 +292,6 @@ end
 -- =======================
 -- Start Script
 -- =======================
-keyUI
+keyUI()
+
+-- Script completed
