@@ -1,5 +1,5 @@
--- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper (Client-only + Auto-Hop)  
--- KRNL-kompatibel, startet automatisch beim Join
+-- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper (Password + Fancy UI + Glow Scrollbars + Sound)
+-- KRNL-kompatibel, Client-only, Auto-Hop
 
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
@@ -20,101 +20,15 @@ local availablePets = {
     "Gorillo Watermelondrillo","Gattatino Nyanino","La Grande Combinasion","Nuclearo Dinossauro","Garama and Madundung"
 }
 
--- =======================
--- Konfiguration
--- =======================
 local Svt = {
     SelectedPet = availablePets[1],
     FinderActive = false
 }
 
--- =======================
--- GUI & Log Setup
--- =======================
 local GUI = {}
-local function createUI()
-    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
-    pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
-
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "GicaHubUI"
-    screen.Parent = parent
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0,380,0,520)
-    frame.Position = UDim2.new(0.5,-190,0.5,-260)
-    frame.BackgroundColor3 = Color3.fromRGB(28,6,40)
-    frame.Parent = screen
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1,-20,0,28)
-    title.Position = UDim2.new(0,10,0,10)
-    title.BackgroundTransparency = 1
-    title.Text = "Gica Hub Pet-Hopper"
-    title.TextColor3 = Color3.fromRGB(255,255,255)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
-    title.Parent = frame
-
-    -- ScrollFrame für Pets
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Size = UDim2.new(1,-20,0,180)
-    scrollFrame.Position = UDim2.new(0,10,0,50)
-    scrollFrame.CanvasSize = UDim2.new(0,0,0,#availablePets*35)
-    scrollFrame.ScrollBarThickness = 8
-    scrollFrame.BackgroundTransparency = 1
-    scrollFrame.Parent = frame
-
-    local uiListLayout = Instance.new("UIListLayout")
-    uiListLayout.Parent = scrollFrame
-    uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    uiListLayout.Padding = UDim.new(0,5)
-
-    for i, petName in ipairs(availablePets) do
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1,0,0,28)
-        btn.Text = petName
-        btn.BackgroundColor3 = Color3.fromRGB(80,0,150)
-        btn.TextColor3 = Color3.fromRGB(255,255,255)
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 16
-        btn.Parent = scrollFrame
-
-        btn.MouseButton1Click:Connect(function()
-            Svt.SelectedPet = petName
-            log("✅ Pet ausgewählt: "..Svt.SelectedPet,"success")
-        end)
-    end
-
-    -- Start Button
-    local finderBtn = Instance.new("TextButton")
-    finderBtn.Size = UDim2.new(1,-20,0,32)
-    finderBtn.Position = UDim2.new(0,10,0,240)
-    finderBtn.Text = "Start Auto-Finder"
-    finderBtn.BackgroundColor3 = Color3.fromRGB(0,150,80)
-    finderBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    finderBtn.Font = Enum.Font.GothamBold
-    finderBtn.TextSize = 16
-    finderBtn.Parent = frame
-
-    finderBtn.MouseButton1Click:Connect(function()
-        startFinder()
-    end)
-
-    -- Log Frame
-    local logBox = Instance.new("ScrollingFrame")
-    logBox.Size = UDim2.new(1,-20,0,250)
-    logBox.Position = UDim2.new(0,10,0,280)
-    logBox.CanvasSize = UDim2.new(0,0,0,0)
-    logBox.ScrollBarThickness = 8
-    logBox.BackgroundColor3 = Color3.fromRGB(20,20,20)
-    logBox.BorderSizePixel = 1
-    logBox.Parent = frame
-    GUI.logBox = logBox
-end
 
 -- =======================
--- Log Funktion GUI + Konsole (Farben)
+-- Log-Funktion
 -- =======================
 local function log(text, type)
     print(text)
@@ -157,9 +71,9 @@ local function baseHasPet(petName)
 end
 
 -- =======================
--- Auto-Finder + Client-side Hop
+-- Auto-Finder + Client Hop
 -- =======================
-function startFinder()
+local function startFinder()
     if Svt.FinderActive then return end
     Svt.FinderActive = true
     log("✅ Auto-Finder gestartet für Pet: "..Svt.SelectedPet,"success")
@@ -172,28 +86,225 @@ function startFinder()
             Svt.FinderActive = false
             break
         else
-            log("⏳ Pet nicht gefunden, versuche auf zufälligen Server zu hoppen...","warn")
-            -- Client-only Hop zu anderem Server
+            log("⏳ Pet nicht gefunden, hoppe zu anderem Server...","warn")
             pcall(function()
                 TeleportService:Teleport(game.PlaceId, LP)
             end)
-            wait(10) -- 10 Sekunden warten, bis Server wechselt
+            wait(10)
         end
-        wait(5) -- alle 5 Sekunden prüfen
+        wait(5)
     end
 end
 
 -- =======================
--- Auto-Start beim Join
+-- Password + TY + Sound
 -- =======================
-Players.PlayerAdded:Connect(function(player)
-    if player == LP then
-        wait(2)
-        spawn(startFinder)
+local function passwordUI()
+    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+    pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
+
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "GicaHubUI"
+    screen.Parent = parent
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0,300,0,200)
+    frame.Position = UDim2.new(0.5,-150,0.5,-100)
+    frame.BackgroundColor3 = Color3.fromRGB(50,0,80)
+    frame.BackgroundTransparency = 0.2
+    frame.BorderSizePixel = 0
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0,20)
+    corner.Parent = frame
+    frame.Parent = screen
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1,0,0,40)
+    title.Position = UDim2.new(0,0,0,10)
+    title.Text = "Enter Password"
+    title.TextColor3 = Color3.fromRGB(255,200,255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.BackgroundTransparency = 1
+    title.Parent = frame
+
+    local input = Instance.new("TextBox")
+    input.Size = UDim2.new(1,-40,0,32)
+    input.Position = UDim2.new(0,20,0,70)
+    input.PlaceholderText = "Password"
+    input.Text = ""
+    input.TextColor3 = Color3.fromRGB(255,255,255)
+    input.BackgroundColor3 = Color3.fromRGB(100,0,150)
+    input.ClearTextOnFocus = true
+    local inputCorner = Instance.new("UICorner")
+    inputCorner.CornerRadius = UDim.new(0,12)
+    inputCorner.Parent = input
+    input.Parent = frame
+
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1,-40,0,32)
+    button.Position = UDim2.new(0,20,0,120)
+    button.Text = "Submit"
+    button.BackgroundColor3 = Color3.fromRGB(0,150,255)
+    button.TextColor3 = Color3.fromRGB(255,255,255)
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0,12)
+    btnCorner.Parent = button
+    button.Parent = frame
+
+    local function showTY()
+        frame:ClearAllChildren()
+        local msg = Instance.new("TextLabel")
+        msg.Size = UDim2.new(1,0,1,0)
+        msg.Position = UDim2.new(0,0,0,0)
+        msg.BackgroundTransparency = 1
+        msg.TextColor3 = Color3.fromRGB(255,200,255)
+        msg.TextScaled = true
+        msg.Font = Enum.Font.GothamBold
+        msg.Text = "TY For purchasing our Service"
+        msg.Parent = frame
+        while msg.Parent do
+            for i=0,1,0.02 do msg.TextTransparency = i wait(0.02) end
+            for i=1,0,-0.02 do msg.TextTransparency = i wait(0.02) end
+        end
     end
-end)
 
-createUI()
-spawn(startFinder)
+    button.MouseButton1Click:Connect(function()
+        if input.Text == "GicaHub" then
+            -- Soundeffekt
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://9118825934"
+            sound.Volume = 1
+            sound.Parent = LP:WaitForChild("PlayerGui")
+            sound:Play()
 
-log("✅ Gica Hub v5 Mobile Auto-Pet-Hopper ready. Script completed.","success
+            showTY()
+            wait(2)
+            frame:Destroy()
+
+            -- Haupt-UI erstellen
+            local function createUI()
+                local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+                pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
+                local screen = Instance.new("ScreenGui")
+                screen.Name = "GicaHubUI"
+                screen.Parent = parent
+
+                local frame = Instance.new("Frame")
+                frame.Size = UDim2.new(0,320,0,480)
+                frame.Position = UDim2.new(0.5,-160,0.5,-240)
+                frame.BackgroundColor3 = Color3.fromRGB(50,0,80)
+                frame.BackgroundTransparency = 0.2
+                frame.BorderSizePixel = 0
+                local corner = Instance.new("UICorner")
+                corner.CornerRadius = UDim.new(0,20)
+                corner.Parent = frame
+                frame.Parent = screen
+
+                local title = Instance.new("TextLabel")
+                title.Size = UDim2.new(1,-20,0,28)
+                title.Position = UDim2.new(0,10,0,10)
+                title.BackgroundTransparency = 1
+                title.Text = "Gica Hub Pet-Hopper"
+                title.TextColor3 = Color3.fromRGB(255,200,255)
+                title.Font = Enum.Font.GothamBold
+                title.TextSize = 18
+                title.Parent = frame
+
+                local scrollFrame = Instance.new("ScrollingFrame")
+                scrollFrame.Size = UDim2.new(1,-20,0,160)
+                scrollFrame.Position = UDim2.new(0,10,0,50)
+                scrollFrame.CanvasSize = UDim2.new(0,0,0,#availablePets*35)
+                scrollFrame.ScrollBarThickness = 8
+                scrollFrame.BackgroundTransparency = 0.3
+                scrollFrame.BackgroundColor3 = Color3.fromRGB(100,0,150)
+                scrollFrame.BorderSizePixel = 0
+                scrollFrame.Parent = frame
+
+                local uiListLayout = Instance.new("UIListLayout")
+                uiListLayout.Parent = scrollFrame
+                uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+                uiListLayout.Padding = UDim.new(0,5)
+
+                for i, petName in ipairs(availablePets) do
+                    local btn = Instance.new("TextButton")
+                    btn.Size = UDim2.new(1,0,0,28)
+                    btn.Text = petName
+                    btn.BackgroundColor3 = Color3.fromRGB(120,0,180)
+                    btn.TextColor3 = Color3.fromRGB(255,255,255)
+                    btn.Font = Enum.Font.GothamBold
+                    btn.TextSize = 16
+                    btn.AutoButtonColor = true
+                    btn.Parent = scrollFrame
+                    local btnCorner = Instance.new("UICorner")
+                    btnCorner.CornerRadius = UDim.new(0,12)
+                    btnCorner.Parent = btn
+
+                    btn.MouseEnter:Connect(function()
+                        btn:TweenSize(UDim2.new(1,0,0,32), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+                        btn.BackgroundColor3 = Color3.fromRGB(200,0,255)
+                    end)
+                    btn.MouseLeave:Connect(function()
+                        btn:TweenSize(UDim2.new(1,0,0,28), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+                        btn.BackgroundColor3 = Color3.fromRGB(120,0,180)
+                    end)
+
+                    btn.MouseButton1Click:Connect(function()
+                        Svt.SelectedPet = petName
+                        log("✅ Pet ausgewählt: "..Svt.SelectedPet,"success")
+                    end)
+                end
+
+                local finderBtn = Instance.new("TextButton")
+                finderBtn.Size = UDim2.new(1,-20,0,32)
+                finderBtn.Position = UDim2.new(0,10,0,220)
+                finderBtn.Text = "Start Auto-Finder"
+                finderBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
+                finderBtn.TextColor3 = Color3.fromRGB(255,255,255)
+                local btnCorner2 = Instance.new("UICorner")
+                btnCorner2.CornerRadius = UDim.new(0,12)
+                btnCorner2.Parent = finderBtn
+                finderBtn.Parent = frame
+                finderBtn.MouseButton1Click:Connect(function()
+                    startFinder()
+                end)
+
+                local logBox = Instance.new("ScrollingFrame")
+                logBox.Size = UDim2.new(1,-20,0,240)
+                logBox.Position = UDim2.new(0,10,0,260)
+                logBox.CanvasSize = UDim2.new(0,0,0,0)
+                logBox.ScrollBarThickness = 8
+                logBox.BackgroundColor3 = Color3.fromRGB(60,0,100)
+                logBox.BackgroundTransparency = 0.2
+                logBox.BorderSizePixel = 0
+                local logCorner = Instance.new("UICorner")
+                logCorner.CornerRadius = UDim.new(0,16)
+                logCorner.Parent = logBox
+                logBox.Parent = frame
+
+                -- Scrollbar Glow beim Hover
+                scrollFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+                    scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(200,100,255)
+                    scrollFrame.MouseEnter:Connect(function()
+                        scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(255,200,255)
+                    end)
+                    scrollFrame.MouseLeave:Connect(function()
+                        scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(200,100,255)
+                    end)
+                end)
+
+                GUI.logBox = logBox
+            end
+
+            createUI()
+            spawn(startFinder)
+            log("✅ Gica Hub v5 Mobile Auto-Pet-Hopper ready. Script completed.","success")
+        else
+            log("❌ Falsches Passwort!","error")
+        end
+    end)
+end
+
+passwordUI()
+
+-- Script completed
