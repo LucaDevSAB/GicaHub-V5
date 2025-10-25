@@ -21,16 +21,7 @@ local API_URL = "http://"..API_IP..":3000/checkPet?pet="
 -- Verfügbare Pets
 -- =======================
 local availablePets = {
-    "Los Combinasion",
-    "GoldenDragon",
-    "FluffyCat",
-    "RainbowDog",
-    "MysticFox",
-    "MysticRabbit",
-    "ShadowWolf",
-    "FireTiger",
-    "IcePenguin",
-    "CyberFox"
+    "Los Combinasion"
 }
 
 -- =======================
