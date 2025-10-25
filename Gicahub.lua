@@ -13,7 +13,7 @@ local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 -- =======================
 -- API Konfiguration
 -- =======================
-local API_IP = "192.168.178.93" -- DEINE WLAN IP
+local API_IP = "192.168.2.108" -- DEINE neue WLAN-IP
 local API_URL = "http://"..API_IP..":3000/checkPet?pet="
 
 -- =======================
