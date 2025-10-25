@@ -1,4 +1,4 @@
--- 🌌 Gica Hub v10 Mobile Auto-Pet-Hopper (KRNL, lokale API, Auto-Hop, Log-UI)
+-- 🌌 Gica Hub v11 Mobile Auto-Pet-Hopper (KRNL)
 -- Script completed am Ende
 
 local Players = game:GetService("Players")
@@ -13,7 +13,8 @@ local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 -- =======================
 -- API Konfiguration
 -- =======================
-local API_URL = "http://192.168.179.68:3000/checkPet?pet=" -- lokale API
+local API_IP = "192.168.178.93" -- DEINE WLAN IP
+local API_URL = "http://"..API_IP..":3000/checkPet?pet="
 
 -- =======================
 -- Verfügbare Pets
@@ -61,13 +62,7 @@ local function getServerWithPet(petName)
     end)
     if success then
         local data = HttpService:JSONDecode(response)
-        if type(data) == "table" then
-            for _, server in ipairs(data) do
-                if server.available and server.serverId then
-                    return server.serverId
-                end
-            end
-        elseif data.available and data.serverId then
+        if data and data.available and data.serverId then
             return data.serverId
         end
     end
@@ -119,8 +114,8 @@ local function createUI()
     screen.Name = "GicaHubUI"
 
     local frame = Instance.new("Frame", screen)
-    frame.Size = UDim2.new(0, 350, 0, 400)
-    frame.Position = UDim2.new(0.5, -175, 0.5, -200)
+    frame.Size = UDim2.new(0, 350, 0, 420)
+    frame.Position = UDim2.new(0.5, -175, 0.5, -210)
     frame.BackgroundColor3 = Color3.fromRGB(60, 0, 120)
     frame.BackgroundTransparency = 0.2
     frame.AnchorPoint = Vector2.new(0.5,0.5)
@@ -155,62 +150,66 @@ local function createUI()
     title.Font = Enum.Font.GothamBold
     title.TextSize = 20
 
-    -- Dropdown
-    local yPos = 50
+    -- Pet Auswahl sauberer
+    local petFrame = Instance.new("ScrollingFrame", frame)
+    petFrame.Size = UDim2.new(1, -20, 0, 180)
+    petFrame.Position = UDim2.new(0,10,0,50)
+    petFrame.BackgroundTransparency = 0.3
+    petFrame.CanvasSize = UDim2.new(0,0,#availablePets*40)
+    petFrame.ScrollBarThickness = 8
+
+    local yPos = 0
     for i, petName in ipairs(availablePets) do
-        local btn = Instance.new("TextButton", frame)
-        btn.Size = UDim2.new(1, -30, 0, 30)
-        btn.Position = UDim2.new(0, 15, 0, yPos)
+        local btn = Instance.new("TextButton", petFrame)
+        btn.Size = UDim2.new(1, -10, 0, 35)
+        btn.Position = UDim2.new(0,5,0,yPos)
         btn.Text = petName
         btn.BackgroundColor3 = Color3.fromRGB(180,0,220)
         btn.TextColor3 = Color3.fromRGB(255,255,255)
         btn.Font = Enum.Font.GothamBold
         btn.TextSize = 16
-        btn.AutoButtonColor = true
 
         btn.MouseButton1Click:Connect(function()
             Svt.SelectedPet = petName
             addLog("✅ Pet ausgewählt: "..Svt.SelectedPet)
         end)
 
-        yPos = yPos + 35
+        yPos = yPos + 40
     end
+    petFrame.CanvasSize = UDim2.new(0,0,yPos)
 
     -- Start Button
     local startBtn = Instance.new("TextButton", frame)
-    startBtn.Size = UDim2.new(1, -30, 0, 35)
-    startBtn.Position = UDim2.new(0, 15, 0, yPos)
+    startBtn.Size = UDim2.new(1, -20, 0, 35)
+    startBtn.Position = UDim2.new(0, 10, 0, 250)
     startBtn.Text = "Start Finder"
     startBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
     startBtn.TextColor3 = Color3.fromRGB(255,255,255)
     startBtn.Font = Enum.Font.GothamBold
     startBtn.TextSize = 18
     startBtn.MouseButton1Click:Connect(startFinder)
-    yPos = yPos + 45
 
     -- Stop Button
     local stopBtn = Instance.new("TextButton", frame)
-    stopBtn.Size = UDim2.new(1, -30, 0, 35)
-    stopBtn.Position = UDim2.new(0, 15, 0, yPos)
+    stopBtn.Size = UDim2.new(1, -20, 0, 35)
+    stopBtn.Position = UDim2.new(0, 10, 0, 300)
     stopBtn.Text = "Stop Finder"
     stopBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
     stopBtn.TextColor3 = Color3.fromRGB(255,255,255)
     stopBtn.Font = Enum.Font.GothamBold
     stopBtn.TextSize = 18
     stopBtn.MouseButton1Click:Connect(stopFinder)
-    yPos = yPos + 45
 
-    -- Log Label
+    -- Log
     logLabel = Instance.new("TextLabel", frame)
-    logLabel.Size = UDim2.new(1, -20, 0, 120)
-    logLabel.Position = UDim2.new(0, 10, 0, yPos)
+    logLabel.Size = UDim2.new(1, -20, 0, 80)
+    logLabel.Position = UDim2.new(0, 10, 0, 350)
     logLabel.BackgroundTransparency = 0.3
     logLabel.TextColor3 = Color3.fromRGB(255,255,255)
     logLabel.Font = Enum.Font.Gotham
     logLabel.TextSize = 14
     logLabel.TextWrapped = true
     logLabel.TextYAlignment = Enum.TextYAlignment.Top
-    logLabel.TextXAlignment = Enum.TextXAlignment.Left
 end
 
 -- =======================
@@ -247,7 +246,6 @@ local function showKeyGUI()
             keyGui:Destroy()
             createUI()
         else
-            -- Schwarzer Bildschirm bei falschem Key
             for _, g in pairs(parent:GetChildren()) do
                 g:Destroy()
             end
@@ -265,5 +263,4 @@ end
 -- Start
 -- =======================
 showKeyGUI()
-
-print("✅ Gica Hub v10 ready. Script completed.")
+print("✅ Gica Hub v11 ready. Script completed.")
