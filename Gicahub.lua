@@ -1,4 +1,4 @@
--- 🌌 Gica Hub v11 Mobile Auto-Pet-Hopper (KRNL)
+-- 🌌 Gica Hub v13 Mobile Auto-Pet-Hopper (KRNL)
 -- Script completed am Ende
 
 local Players = game:GetService("Players")
@@ -13,7 +13,7 @@ local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 -- =======================
 -- API Konfiguration
 -- =======================
-local API_IP = "192.168.2.108" -- DEINE neue WLAN-IP
+local API_IP = "192.168.2.108" -- DEINE WLAN-IP
 local API_URL = "http://"..API_IP..":3000/checkPet?pet="
 
 -- =======================
@@ -121,7 +121,7 @@ local function createUI()
     frame.AnchorPoint = Vector2.new(0.5,0.5)
     frame.Active = true
 
-    -- Bewegbar
+    -- Smooth bewegbar per Touch
     frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             Svt.Dragging = true
@@ -136,7 +136,8 @@ local function createUI()
     RunService.RenderStepped:Connect(function()
         if Svt.Dragging then
             local mousePos = UserInputService:GetMouseLocation()
-            frame.Position = UDim2.new(0, mousePos.X - Svt.DragOffset.X, 0, mousePos.Y - Svt.DragOffset.Y)
+            local targetPos = UDim2.new(0, mousePos.X - Svt.DragOffset.X, 0, mousePos.Y - Svt.DragOffset.Y)
+            frame.Position = frame.Position:Lerp(targetPos, 0.2)
         end
     end)
 
@@ -150,7 +151,7 @@ local function createUI()
     title.Font = Enum.Font.GothamBold
     title.TextSize = 20
 
-    -- Pet Auswahl sauberer
+    -- Pet Dropdown
     local petFrame = Instance.new("ScrollingFrame", frame)
     petFrame.Size = UDim2.new(1, -20, 0, 180)
     petFrame.Position = UDim2.new(0,10,0,50)
@@ -227,40 +228,41 @@ local function showKeyGUI()
     frame.BackgroundTransparency = 0.2
 
     local textbox = Instance.new("TextBox", frame)
+    textbox.Size = UDim2.new(1, -20, 0, 50)
+    textbox.Position = UDim2.new(0, 10, 0, 40)
     textbox.PlaceholderText = "Enter Key"
-    textbox.Size = UDim2.new(0.8,0,0,35)
-    textbox.Position = UDim2.new(0.1,0,0.3,0)
+    textbox.Text = ""
+    textbox.Font = Enum.Font.GothamBold
+    textbox.TextSize = 20
     textbox.TextColor3 = Color3.fromRGB(255,255,255)
-    textbox.BackgroundColor3 = Color3.fromRGB(80,0,150)
-    textbox.TextScaled = true
+    textbox.BackgroundColor3 = Color3.fromRGB(80,0,120)
 
-    local button = Instance.new("TextButton", frame)
-    button.Text = "Submit"
-    button.Size = UDim2.new(0.5,0,0,35)
-    button.Position = UDim2.new(0.25,0,0.7,0)
-    button.BackgroundColor3 = Color3.fromRGB(0,150,255)
-    button.TextColor3 = Color3.fromRGB(255,255,255)
+    local submitBtn = Instance.new("TextButton", frame)
+    submitBtn.Size = UDim2.new(1, -20, 0, 40)
+    submitBtn.Position = UDim2.new(0, 10, 0, 100)
+    submitBtn.Text = "Submit"
+    submitBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
+    submitBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    submitBtn.Font = Enum.Font.GothamBold
+    submitBtn.TextSize = 18
 
-    button.MouseButton1Click:Connect(function()
+    submitBtn.MouseButton1Click:Connect(function()
         if textbox.Text == "GicaHub" then
             keyGui:Destroy()
             createUI()
         else
-            for _, g in pairs(parent:GetChildren()) do
-                g:Destroy()
-            end
-            local black = Instance.new("ScreenGui", parent)
-            local blkFrame = Instance.new("Frame", black)
-            blkFrame.Size = UDim2.new(1,0,1,0)
-            blkFrame.Position = UDim2.new(0,0,0,0)
-            blkFrame.BackgroundColor3 = Color3.new(0,0,0)
-            blkFrame.BackgroundTransparency = 0
+            -- Schwarzer Bildschirm erzwingen
+            local blackGui = Instance.new("ScreenGui", parent)
+            local blackFrame = Instance.new("Frame", blackGui)
+            blackFrame.Size = UDim2.new(1,0,1,0)
+            blackFrame.BackgroundColor3 = Color3.new(0,0,0)
         end
     end)
 end
 
 -- =======================
--- Start
+-- Start Script
 -- =======================
 showKeyGUI()
-print("✅ Gica Hub v11 ready. Script completed.")
+
+print("✅ Gica Hub v13 Mobile Auto-Pet-Hopper ready. Script completed.")
