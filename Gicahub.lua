@@ -1,4 +1,4 @@
--- 🌌 Gica Hub v6 Mobile Auto-Pet-Hopper (KRNL, lokale API)
+-- 🌌 Gica Hub v8 Mobile Auto-Pet-Hopper (KRNL, lokale API, Auto-Hop)
 -- Script completed am Ende
 
 local Players = game:GetService("Players")
@@ -6,13 +6,14 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 -- =======================
 -- API Konfiguration
 -- =======================
-local API_URL = "http://192.168.179.68:3000/checkPet?pet="
+local API_URL = "http://192.168.179.68:3000/checkPet?pet=" -- trage hier deine lokale IP ein
 
 -- =======================
 -- Verfügbare Pets
@@ -35,21 +36,31 @@ local availablePets = {
 -- =======================
 local Svt = {
     SelectedPet = availablePets[1],
-    FinderActive = false
+    FinderActive = false,
+    Dragging = false,
+    DragOffset = Vector3.new()
 }
 
 -- =======================
--- API Check
+-- API Auto-Hop
 -- =======================
-local function petAvailable(petName)
+local function getServerWithPet(petName)
     local success, response = pcall(function()
         return HttpService:GetAsync(API_URL..HttpService:UrlEncode(petName))
     end)
     if success then
         local data = HttpService:JSONDecode(response)
-        return data.available
+        if type(data) == "table" then
+            for _, server in ipairs(data) do
+                if server.available and server.serverId then
+                    return server.serverId
+                end
+            end
+        elseif data.available and data.serverId then
+            return data.serverId
+        end
     end
-    return false
+    return nil
 end
 
 -- =======================
@@ -85,18 +96,20 @@ local function startFinder()
 
     spawn(function()
         while Svt.FinderActive do
-            if petAvailable(Svt.SelectedPet) then
-                print("✅ Pet verfügbar auf einem Server!")
-                if baseHasPet(Svt.SelectedPet) then
-                    print("✅ Pet bereits in Base gefunden. Stoppe Finder.")
-                    Svt.FinderActive = false
-                    break
-                else
-                    print("🔹 Pet auf anderem Server verfügbar. Hoppen...")
-                    -- Hier kannst du TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LP) einfügen
+            local serverId = getServerWithPet(Svt.SelectedPet)
+            if serverId then
+                print("✅ Pet auf Server gefunden! ServerID:", serverId)
+                -- Auto-Hop
+                local success, err = pcall(function()
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LP)
+                end)
+                if not success then
+                    warn("❌ Fehler beim Hoppen:", err)
                 end
+                Svt.FinderActive = false
+                break
             else
-                print("⚠️ Pet aktuell nicht verfügbar. Warte 2 Sekunden...")
+                print("⚠️ Pet aktuell auf keinem Server verfügbar. Warte 2 Sekunden...")
             end
             wait(2)
         end
@@ -123,10 +136,29 @@ local function createUI()
     frame.Position = UDim2.new(0.5, -160, 0.5, -150)
     frame.BackgroundColor3 = Color3.fromRGB(50, 0, 100)
     frame.BackgroundTransparency = 0.2
-    frame.ClipsDescendants = true
     frame.AnchorPoint = Vector2.new(0.5, 0.5)
     frame.Active = true
     frame.Selectable = true
+
+    -- Movable UI
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            Svt.Dragging = true
+            Svt.DragOffset = input.Position - frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    Svt.Dragging = false
+                end
+            end)
+        end
+    end)
+
+    RunService.RenderStepped:Connect(function()
+        if Svt.Dragging then
+            local mousePos = UserInputService:GetMouseLocation()
+            frame.Position = UDim2.new(0, mousePos.X - Svt.DragOffset.X, 0, mousePos.Y - Svt.DragOffset.Y)
+        end
+    end)
 
     -- Titel
     local title = Instance.new("TextLabel", frame)
@@ -224,7 +256,6 @@ local function showKeyGUI()
         if textbox.Text == "GicaHub" then
             keyGui:Destroy()
             createUI()
-            print("✅ Key akzeptiert! Auto-Finder bereit.")
         else
             for _,v in pairs(parent:GetChildren()) do v:Destroy() end
             local blackGui = Instance.new("ScreenGui", parent)
@@ -240,4 +271,4 @@ end
 -- =======================
 showKeyGUI()
 
-print("✅ Gica Hub v6 Mobile Auto-Pet-Hopper ready. Script completed.")
+print("✅ Gica Hub v8 Mobile Auto-Pet-Hopper ready. Script completed.")
