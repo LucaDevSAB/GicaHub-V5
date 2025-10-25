@@ -1,38 +1,44 @@
--- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper – KRNL Ready
--- Password/Key: "GicaHub"
+-- 🌌 Gica Hub v5 Mobile Auto-Pet-Hopper robust
+-- KRNL-kompatibel
+
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
 local Workspace = game:GetService("Workspace")
 
 local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 -- =======================
--- Config
+-- Pet-Auswahl
 -- =======================
+local availablePets = {
+    "Los Combinasion", "GoldenDragon", "FluffyCat", "RainbowDog", "MysticFox"
+}
 local Svt = {
-    SelectedPet = "Los Combinasion",
-    FinderActive = false
+    SelectedPet = availablePets[1],
+    FinderActive = false,
+    minPlayers = 4
 }
 
 -- =======================
--- Simulierte Server & Pets (API-Simulation)
+-- Prüft Base nach Pet
 -- =======================
-local servers = {
-    {id="server1", pets={"Los Combinasion","GoldenDragon"}},
-    {id="server2", pets={"FluffyCat","RainbowDog"}},
-    {id="server3", pets={"MysticFox","Los Combinasion"}},
-    {id="server4", pets={"MysticRabbit","ShadowWolf"}}
-}
-
-local function findPetServer(pet)
-    for _,server in pairs(servers) do
-        for _,p in pairs(server.pets) do
-            if p:lower() == pet:lower() then
-                return server.id
+local function baseHasPet(petName)
+    for _, base in pairs(Workspace:GetChildren()) do
+        if base:IsA("Model") or base:IsA("Folder") then
+            for _, obj in pairs(base:GetDescendants()) do
+                local ok, val = pcall(function() return tostring(obj.Value) end)
+                if ok and val and val:lower():match(petName:lower()) then
+                    return true, base.Name
+                elseif obj:IsA("Part") or obj:IsA("MeshPart") then
+                    if obj.Name:lower():match(petName:lower()) then
+                        return true, base.Name
+                    end
+                end
             end
         end
     end
-    return nil
+    return false, nil
 end
 
 -- =======================
@@ -43,100 +49,79 @@ local function startFinder()
     Svt.FinderActive = true
     print("✅ Auto-Finder gestartet für Pet:", Svt.SelectedPet)
 
+    local PlaceId = game.PlaceId
+    local serversChecked = {}
+    local pageCursor = ""
+
     spawn(function()
         while Svt.FinderActive do
-            local serverId = findPetServer(Svt.SelectedPet)
-            if serverId then
-                print("✅ Pet gefunden auf Server:", serverId)
-                -- Teleport nur simuliert (KRNL kann hier echt hoppen)
-                pcall(function()
-                    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, serverId, LP)
-                end)
-                return
-            else
-                print("🔁 Kein Server gefunden, retry...")
+            local url = "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+            if pageCursor ~= "" then url = url.."&cursor="..pageCursor end
+
+            local success, response = pcall(function() return HttpService:GetAsync(url) end)
+            if not success then
+                warn("❌ Fehler beim Abrufen Serverliste:", response)
+                wait(2)
+                continue
+            end
+
+            local data
+            local ok, jsonErr = pcall(function() data = HttpService:JSONDecode(response) end)
+            if not ok then
+                warn("❌ JSON-Parsing Fehler:", jsonErr)
+                wait(2)
+                continue
+            end
+
+            pageCursor = data.nextPageCursor or ""
+
+            if not data.data or #data.data == 0 then
+                print("⚠️ Keine Server auf dieser Seite")
+                wait(2)
+                continue
+            end
+
+            table.sort(data.data, function(a,b) return (a.playing or 0) > (b.playing or 0) end)
+
+            for _, server in pairs(data.data) do
+                local sid = server.id
+                if not serversChecked[sid] and (server.playing or 0) >= Svt.minPlayers then
+                    serversChecked[sid] = true
+                    print(("[Finder] Prüfe ServerID: %s (Spieler: %d)"):format(sid, server.playing or 0))
+
+                    local found, baseName = baseHasPet(Svt.SelectedPet)
+                    if found then
+                        print("✅ Pet bereits im aktuellen Server:", baseName)
+                        Svt.FinderActive = false
+                        return
+                    end
+
+                    local hopSuccess, hopErr = pcall(function()
+                        TeleportService:TeleportToPlaceInstance(PlaceId, sid, LP)
+                    end)
+
+                    if not hopSuccess then
+                        warn("❌ Fehler beim Hoppen (evtl. Server blockiert):", hopErr)
+                        -- Weiter zum nächsten Server
+                    else
+                        return -- Teleport erfolgreich, Script stoppt hier
+                    end
+                end
+            end
+
+            if pageCursor == "" then
+                print("⚠️ Keine weiteren Server verfügbar, retry...")
+                pageCursor = ""
             end
             wait(1)
         end
     end)
 end
 
-local function stopFinder()
-    Svt.FinderActive = false
-    print("🛑 Auto-Finder gestoppt")
-end
-
 -- =======================
--- Key GUI
+-- Start / Stop Buttons & UI
 -- =======================
-local function createKeyUI()
-    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
-    pcall(function() parent:FindFirstChild("GicaKeyUI"):Destroy() end)
-
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "GicaKeyUI"
-    screen.Parent = parent
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0,250,0,120)
-    frame.Position = UDim2.new(0.5,-125,0.5,-60)
-    frame.BackgroundColor3 = Color3.fromRGB(28,6,40)
-    frame.BackgroundTransparency = 0.3
-    frame.Parent = screen
-    frame.Active = true
-    frame.Draggable = true
-
-    local text = Instance.new("TextLabel")
-    text.Size = UDim2.new(1,0,0,30)
-    text.Position = UDim2.new(0,0,0,10)
-    text.BackgroundTransparency = 1
-    text.Text = "Enter Key:"
-    text.TextColor3 = Color3.fromRGB(255,255,255)
-    text.Font = Enum.Font.GothamBold
-    text.TextSize = 18
-    text.Parent = frame
-
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.new(1,-20,0,30)
-    box.Position = UDim2.new(0,10,0,50)
-    box.Text = ""
-    box.BackgroundColor3 = Color3.fromRGB(50,0,100)
-    box.TextColor3 = Color3.fromRGB(255,255,255)
-    box.Font = Enum.Font.GothamBold
-    box.TextSize = 16
-    box.ClearTextOnFocus = false
-    box.Parent = frame
-
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1,-20,0,30)
-    button.Position = UDim2.new(0,10,0,90)
-    button.Text = "Submit"
-    button.BackgroundColor3 = Color3.fromRGB(100,0,150)
-    button.TextColor3 = Color3.fromRGB(255,255,255)
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 16
-    button.Parent = frame
-
-    button.MouseButton1Click:Connect(function()
-        if box.Text == "GicaHub" then
-            print("✅ Key korrekt")
-            screen:Destroy()
-            createMainUI()
-        else
-            print("❌ Falscher Key! Neustart erforderlich")
-            frame.BackgroundColor3 = Color3.fromRGB(0,0,0)
-            frame.Size = UDim2.new(1,0,1,0)
-            box:Destroy()
-            button:Destroy()
-            text.Text = "Restart Roblox!"
-        end
-    end)
-end
-
--- =======================
--- Main GUI
--- =======================
-function createMainUI()
+local function createUI()
     local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
     pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
 
@@ -148,10 +133,9 @@ function createMainUI()
     frame.Size = UDim2.new(0,320,0,250)
     frame.Position = UDim2.new(0.5,-160,0.5,-125)
     frame.BackgroundColor3 = Color3.fromRGB(28,6,40)
-    frame.BackgroundTransparency = 0.3
     frame.Parent = screen
     frame.Active = true
-    frame.Draggable = true
+    frame.Draggable = true -- Smooth bewegen per Touch
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1,-20,0,28)
@@ -163,26 +147,31 @@ function createMainUI()
     title.TextSize = 18
     title.Parent = frame
 
-    -- Pet Dropdown (nur Los Combinasion)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1,-20,0,28)
-    btn.Position = UDim2.new(0,10,0,50)
-    btn.Text = "Los Combinasion"
-    btn.BackgroundColor3 = Color3.fromRGB(80,0,150)
-    btn.TextColor3 = Color3.fromRGB(255,255,255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 16
-    btn.Parent = frame
+    -- Dropdown-artige Auswahl
+    local yPos = 50
+    for i, petName in ipairs(availablePets) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1,-20,0,28)
+        btn.Position = UDim2.new(0,10,0,yPos)
+        btn.Text = petName
+        btn.BackgroundColor3 = Color3.fromRGB(80,0,150)
+        btn.TextColor3 = Color3.fromRGB(255,255,255)
+        btn.Font = Enum.Font.GothamBold
+        btn.TextSize = 16
+        btn.Parent = frame
 
-    btn.MouseButton1Click:Connect(function()
-        Svt.SelectedPet = "Los Combinasion"
-        print("✅ Pet ausgewählt:", Svt.SelectedPet)
-    end)
+        btn.MouseButton1Click:Connect(function()
+            Svt.SelectedPet = petName
+            print("✅ Pet ausgewählt:", Svt.SelectedPet)
+        end)
+
+        yPos = yPos + 35
+    end
 
     -- Start Button
     local startBtn = Instance.new("TextButton")
     startBtn.Size = UDim2.new(1,-20,0,32)
-    startBtn.Position = UDim2.new(0,10,0,90)
+    startBtn.Position = UDim2.new(0,10,0,yPos)
     startBtn.Text = "Start Finder"
     startBtn.BackgroundColor3 = Color3.fromRGB(0,150,80)
     startBtn.TextColor3 = Color3.fromRGB(255,255,255)
@@ -194,18 +183,22 @@ function createMainUI()
     -- Stop Button
     local stopBtn = Instance.new("TextButton")
     stopBtn.Size = UDim2.new(1,-20,0,32)
-    stopBtn.Position = UDim2.new(0,10,0,130)
+    stopBtn.Position = UDim2.new(0,10,0,yPos+40)
     stopBtn.Text = "Stop Finder"
     stopBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
     stopBtn.TextColor3 = Color3.fromRGB(255,255,255)
     stopBtn.Font = Enum.Font.GothamBold
     stopBtn.TextSize = 16
     stopBtn.Parent = frame
-    stopBtn.MouseButton1Click:Connect(stopFinder)
+    stopBtn.MouseButton1Click:Connect(function()
+        Svt.FinderActive = false
+        print("🛑 Finder gestoppt")
+    end)
 end
 
 -- =======================
--- Auto Start
+-- Start UI
 -- =======================
-createKeyUI()
-print("✅ Gica Hub v5 Mobile ready. Script completed.")
+createUI()
+
+print("✅ Gica Hub v5 Auto-Pet-Finder ready. Script completed.")
