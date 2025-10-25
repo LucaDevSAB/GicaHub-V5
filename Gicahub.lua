@@ -1,66 +1,148 @@
-// 🌌 Gica Auto-Pet Finder – Cloud-API für "Los Combinasion"
-const express = require("express");
-const app = express();
-const port = 3000;
+-- 🌌 Gica Hub v5 – KRNL Auto-Pet-Finder fix
+-- Passwort/Key: "Luca123", UI sofort sichtbar, bewegbar, Start/Stop Buttons, API-Integration
 
-// 🔹 Gesuchtes Pet
-const TARGET_PET = "Los Combinasion";
-const TARGET_ALIASES = ["loscombinasion","los_combinasion","pet001"];
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
-// 🔹 Key-Schutz – Jeder Nutzer bekommt seinen eigenen Key
-const VALID_KEYS = ["Luca123","Anna456","Max789"];
-
-// 🔹 Simulierte Server mit zufälliger Verteilung von Pets
-const OTHER_PETS = ["GoldenDragon","FluffyCat","RainbowDog","MysticFox","MysticRabbit"];
-function generateServers() {
-    const servers = [];
-    for(let i=1;i<=25;i++){
-        let pets = [];
-        if(Math.random()<0.15) pets.push(TARGET_PET);
-        OTHER_PETS.forEach(pet=>{if(Math.random()<0.5) pets.push(pet)});
-        servers.push({id:"server_"+i,pets:pets});
-    }
-    return servers;
+-- =======================
+-- Config
+-- =======================
+local Config = {
+    Key = "Luca123",
+    SelectedPet = "Los Combinasion",
+    FinderActive = false
 }
 
-// 🔹 Flexible Vergleichsfunktion für Target Pet
-function matchTarget(pet){
-    if(!pet) return false;
-    const normalized = pet.toLowerCase().replace(/\s|_/g,"");
-    if(normalized === TARGET_PET.toLowerCase().replace(/\s|_/g,"")) return true;
-    for(const alias of TARGET_ALIASES){
-        if(normalized===alias.toLowerCase()) return true;
-    }
-    return false;
-}
+-- =======================
+-- UI erstellen
+-- =======================
+local function createUI()
+    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+    pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
 
-// 🔹 API Endpoint
-app.get("/checkPet",(req,res)=>{
-    const queryPet = req.query.pet;
-    const key = req.query.key;
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "GicaHubUI"
+    screen.Parent = parent
 
-    if(!key || !VALID_KEYS.includes(key)){
-        return res.json({success:false,message:"❌ Ungültiger Key",found:false});
-    }
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0,300,0,220)
+    frame.Position = UDim2.new(0.5,-150,0.5,-110)
+    frame.BackgroundColor3 = Color3.fromRGB(50,0,100)
+    frame.BackgroundTransparency = 0.3
+    frame.ClipsDescendants = true
+    frame.Active = true
+    frame.Draggable = true
+    frame.Parent = screen
 
-    if(!matchTarget(queryPet)){
-        return res.json({success:false,message:"❌ Nur Los Combinasion wird unterstützt",found:false});
-    }
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1,0,0,28)
+    title.Position = UDim2.new(0,0,0,0)
+    title.BackgroundTransparency = 1
+    title.Text = "Gica Hub Pet-Finder"
+    title.TextColor3 = Color3.fromRGB(255,255,255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.Parent = frame
 
-    const servers = generateServers();
-    const foundServer = servers.find(s=>s.pets.includes(TARGET_PET));
+    -- Pet Auswahl Dropdown (nur Los Combinasion fixiert)
+    local petLabel = Instance.new("TextLabel")
+    petLabel.Size = UDim2.new(1,-20,0,28)
+    petLabel.Position = UDim2.new(0,10,0,40)
+    petLabel.BackgroundColor3 = Color3.fromRGB(80,0,150)
+    petLabel.TextColor3 = Color3.fromRGB(255,255,255)
+    petLabel.Text = "Pet: "..Config.SelectedPet
+    petLabel.Font = Enum.Font.GothamBold
+    petLabel.TextSize = 16
+    petLabel.Parent = frame
 
-    if(foundServer){
-        console.log(`✅ ${TARGET_PET} gefunden auf ${foundServer.id}`);
-        res.json({success:true,found:true,server:foundServer.id,message:`${TARGET_PET} gefunden auf ${foundServer.id}`});
-    } else {
-        console.log("🔁 Kein Treffer – Suche läuft weiter...");
-        res.json({success:true,found:false,message:"Kein Server mit Los Combinasion gefunden"});
-    }
-});
+    -- Start Button
+    local startBtn = Instance.new("TextButton")
+    startBtn.Size = UDim2.new(1,-20,0,32)
+    startBtn.Position = UDim2.new(0,10,0,80)
+    startBtn.Text = "Start Finder"
+    startBtn.BackgroundColor3 = Color3.fromRGB(0,150,80)
+    startBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    startBtn.Font = Enum.Font.GothamBold
+    startBtn.TextSize = 16
+    startBtn.Parent = frame
 
-// 🔹 Server starten
-app.listen(port,"0.0.0.0",()=>{
-    console.log(`🚀 API läuft auf http://localhost:${port}`);
-    console.log(`🔹 Test: http://localhost:${port}/checkPet?pet=Los%20Combinasion&key=Luca123`);
-});
+    -- Stop Button
+    local stopBtn = Instance.new("TextButton")
+    stopBtn.Size = UDim2.new(1,-20,0,32)
+    stopBtn.Position = UDim2.new(0,10,0,120)
+    stopBtn.Text = "Stop Finder"
+    stopBtn.BackgroundColor3 = Color3.fromRGB(150,0,0)
+    stopBtn.TextColor3 = Color3.fromRGB(255,255,255)
+    stopBtn.Font = Enum.Font.GothamBold
+    stopBtn.TextSize = 16
+    stopBtn.Parent = frame
+
+    return startBtn, stopBtn
+end
+
+-- =======================
+-- Auto-Pet Finder (Cloud API)
+-- =======================
+local function startFinder()
+    if Config.FinderActive then return end
+    Config.FinderActive = true
+    print("✅ Finder gestartet für Pet:", Config.SelectedPet)
+
+    spawn(function()
+        while Config.FinderActive do
+            local success, response = pcall(function()
+                return HttpService:GetAsync("https://petfinder-api-v3.vercel.app/api/checkPet?pet="..Config.SelectedPet.."&key=Luca123")
+            end)
+            if success then
+                local data = HttpService:JSONDecode(response)
+                if data.found then
+                    print("✅ Pet gefunden auf Server:", data.server)
+                    Config.FinderActive = false
+                    break
+                else
+                    print("🔁 Kein Pet gefunden, suche weiter...")
+                end
+            else
+                warn("❌ Fehler beim Abrufen der API:", response)
+            end
+            wait(1)
+        end
+    end)
+end
+
+-- Stop Finder
+local function stopFinder()
+    Config.FinderActive = false
+    print("⏹️ Finder gestoppt")
+end
+
+-- =======================
+-- Key Eingabe
+-- =======================
+local function keyCheck()
+    local key = Config.Key -- Kann erweitert werden für InputBox, jetzt fix
+    if key ~= "Luca123" then
+        -- Vollbild Schwarz bei falschem Key
+        local blackScreen = Instance.new("ScreenGui")
+        blackScreen.Name = "WrongKey"
+        blackScreen.Parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1,0,1,0)
+        frame.BackgroundColor3 = Color3.new(0,0,0)
+        frame.Parent = blackScreen
+        return false
+    end
+    return true
+end
+
+-- =======================
+-- Initialisierung
+-- =======================
+if keyCheck() then
+    local startBtn, stopBtn = createUI()
+    startBtn.MouseButton1Click:Connect(startFinder)
+    stopBtn.MouseButton1Click:Connect(stopFinder)
+end
+
+print("✅ Gica Hub Pet-Finder ready. Script completed.")
