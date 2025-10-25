@@ -1,134 +1,66 @@
--- 🌌 Gica Auto-Pet Finder – Cloud API + UI
--- Ziel-Pet: Los Combinasion
--- API: https://los-combi-api.vercel.app/api/checkPet?pet=Los%20Combinasion
+// 🌌 Gica Auto-Pet Finder – Cloud-API für "Los Combinasion"
+const express = require("express");
+const app = express();
+const port = 3000;
 
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LP = Players.LocalPlayer
+// 🔹 Gesuchtes Pet
+const TARGET_PET = "Los Combinasion";
+const TARGET_ALIASES = ["loscombinasion","los_combinasion","pet001"];
 
-local API_URL = "https://los-combi-api.vercel.app/api/checkPet?pet=Los%20Combinasion"
-local FinderActive = false
-local PetName = "Los Combinasion"
+// 🔹 Key-Schutz – Jeder Nutzer bekommt seinen eigenen Key
+const VALID_KEYS = ["Luca123","Anna456","Max789"];
 
--- =======================
--- UI erstellen
--- =======================
-local function createUI()
-    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
-    pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
+// 🔹 Simulierte Server mit zufälliger Verteilung von Pets
+const OTHER_PETS = ["GoldenDragon","FluffyCat","RainbowDog","MysticFox","MysticRabbit"];
+function generateServers() {
+    const servers = [];
+    for(let i=1;i<=25;i++){
+        let pets = [];
+        if(Math.random()<0.15) pets.push(TARGET_PET);
+        OTHER_PETS.forEach(pet=>{if(Math.random()<0.5) pets.push(pet)});
+        servers.push({id:"server_"+i,pets:pets});
+    }
+    return servers;
+}
 
-    local screen = Instance.new("ScreenGui")
-    screen.Name = "GicaHubUI"
-    screen.Parent = parent
+// 🔹 Flexible Vergleichsfunktion für Target Pet
+function matchTarget(pet){
+    if(!pet) return false;
+    const normalized = pet.toLowerCase().replace(/\s|_/g,"");
+    if(normalized === TARGET_PET.toLowerCase().replace(/\s|_/g,"")) return true;
+    for(const alias of TARGET_ALIASES){
+        if(normalized===alias.toLowerCase()) return true;
+    }
+    return false;
+}
 
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 280, 0, 150)
-    frame.Position = UDim2.new(0.5, -140, 0.5, -75)
-    frame.BackgroundColor3 = Color3.fromRGB(50, 0, 100)
-    frame.BackgroundTransparency = 0.2
-    frame.BorderSizePixel = 0
-    frame.Parent = screen
-    frame.Active = true
-    frame.Draggable = true
+// 🔹 API Endpoint
+app.get("/checkPet",(req,res)=>{
+    const queryPet = req.query.pet;
+    const key = req.query.key;
 
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 28)
-    title.Position = UDim2.new(0,0,0,0)
-    title.BackgroundTransparency = 1
-    title.Text = "Gica Auto-Pet Finder"
-    title.TextColor3 = Color3.fromRGB(255,255,255)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
-    title.Parent = frame
+    if(!key || !VALID_KEYS.includes(key)){
+        return res.json({success:false,message:"❌ Ungültiger Key",found:false});
+    }
 
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, -20, 0, 24)
-    statusLabel.Position = UDim2.new(0,10,0,40)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "Status: Idle"
-    statusLabel.TextColor3 = Color3.fromRGB(255,255,255)
-    statusLabel.Font = Enum.Font.Gotham
-    statusLabel.TextSize = 16
-    statusLabel.Parent = frame
+    if(!matchTarget(queryPet)){
+        return res.json({success:false,message:"❌ Nur Los Combinasion wird unterstützt",found:false});
+    }
 
-    local startBtn = Instance.new("TextButton")
-    startBtn.Size = UDim2.new(0.4, 0, 0, 32)
-    startBtn.Position = UDim2.new(0.05,0,0,80)
-    startBtn.BackgroundColor3 = Color3.fromRGB(120,0,200)
-    startBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    startBtn.Font = Enum.Font.GothamBold
-    startBtn.TextSize = 16
-    startBtn.Text = "Start Finder"
-    startBtn.Parent = frame
+    const servers = generateServers();
+    const foundServer = servers.find(s=>s.pets.includes(TARGET_PET));
 
-    local stopBtn = Instance.new("TextButton")
-    stopBtn.Size = UDim2.new(0.4, 0, 0, 32)
-    stopBtn.Position = UDim2.new(0.55,0,0,80)
-    stopBtn.BackgroundColor3 = Color3.fromRGB(200,0,120)
-    stopBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    stopBtn.Font = Enum.Font.GothamBold
-    stopBtn.TextSize = 16
-    stopBtn.Text = "Stop Finder"
-    stopBtn.Parent = frame
+    if(foundServer){
+        console.log(`✅ ${TARGET_PET} gefunden auf ${foundServer.id}`);
+        res.json({success:true,found:true,server:foundServer.id,message:`${TARGET_PET} gefunden auf ${foundServer.id}`});
+    } else {
+        console.log("🔁 Kein Treffer – Suche läuft weiter...");
+        res.json({success:true,found:false,message:"Kein Server mit Los Combinasion gefunden"});
+    }
+});
 
-    -- =======================
-    -- Finder-Funktion
-    -- =======================
-    local function checkPet()
-        local success, response = pcall(function()
-            return HttpService:GetAsync(API_URL)
-        end)
-
-        if not success then
-            warn("⚠️ API Fehler: ", response)
-            statusLabel.Text = "Status: API Error"
-            return false
-        end
-
-        local data
-        success, data = pcall(function() return HttpService:JSONDecode(response) end)
-        if not success or not data then
-            warn("⚠️ API Antwort Fehler")
-            statusLabel.Text = "Status: JSON Error"
-            return false
-        end
-
-        if data.found then
-            print("✅ Pet gefunden auf:", data.server)
-            statusLabel.Text = "Status: Gefunden auf "..data.server
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, data.server, LP)
-            return true
-        else
-            statusLabel.Text = "Status: Suche läuft..."
-        end
-        return false
-    end
-
-    -- =======================
-    -- Start/Stop Buttons
-    -- =======================
-    local FinderLoop
-    startBtn.MouseButton1Click:Connect(function()
-        if FinderActive then return end
-        FinderActive = true
-        statusLabel.Text = "Status: Suche gestartet"
-        FinderLoop = RunService.Heartbeat:Connect(function()
-            if FinderActive then
-                checkPet()
-            end
-        end)
-    end)
-
-    stopBtn.MouseButton1Click:Connect(function()
-        if FinderLoop then FinderLoop:Disconnect() end
-        FinderActive = false
-        statusLabel.Text = "Status: Gestoppt"
-        print("🛑 Auto-Pet Finder gestoppt")
-    end)
-end
-
--- UI erstellen
-createUI()
-print("✅ Gica Auto-Pet Finder UI geladen. Script completed.")
+// 🔹 Server starten
+app.listen(port,"0.0.0.0",()=>{
+    console.log(`🚀 API läuft auf http://localhost:${port}`);
+    console.log(`🔹 Test: http://localhost:${port}/checkPet?pet=Los%20Combinasion&key=Luca123`);
+});
