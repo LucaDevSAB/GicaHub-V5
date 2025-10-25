@@ -138,15 +138,26 @@ local function createUI()
         end
     end)
 
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            frameStart = Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset)
+        end
+    end)
+
     RunService.RenderStepped:Connect(function()
         if dragging then
-            local inputPos = dragging and UserInputService:GetMouseLocation() or dragStart
+            local inputPos = dragStart
             if UserInputService.TouchEnabled then
                 local touches = UserInputService:GetTouchPositions()
                 if #touches > 0 then
                     inputPos = Vector2.new(touches[1].X, touches[1].Y)
                 end
+            else
+                inputPos = UserInputService:GetMouseLocation()
             end
+
             local delta = inputPos - dragStart
             local target = frameStart + delta
             frame.Position = UDim2.new(0, target.X, 0, target.Y)
