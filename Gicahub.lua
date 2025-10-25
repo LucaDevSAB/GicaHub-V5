@@ -1,4 +1,4 @@
--- 🌌 Gica Hub v14 Mobile Auto-Pet-Hopper (KRNL)
+-- 🌌 Gica Hub v15 Mobile Auto-Pet-Hopper (KRNL)
 -- API direkt konfiguriert für IP 192.168.2.108
 -- Script completed am Ende
 
@@ -120,7 +120,7 @@ local function createUI()
     frame.AnchorPoint = Vector2.new(0.5,0.5)
     frame.Active = true
 
-    -- Smooth draggable
+    -- Smooth draggable für Mobile & PC
     local dragging = false
     local dragStart = Vector2.new()
     local frameStart = Vector2.new()
@@ -140,8 +140,15 @@ local function createUI()
 
     RunService.RenderStepped:Connect(function()
         if dragging then
-            local delta = UserInputService:GetMouseLocation() - dragStart
-            local target = frameStart + Vector2.new(delta.X, delta.Y)
+            local inputPos = dragging and UserInputService:GetMouseLocation() or dragStart
+            if UserInputService.TouchEnabled then
+                local touches = UserInputService:GetTouchPositions()
+                if #touches > 0 then
+                    inputPos = Vector2.new(touches[1].X, touches[1].Y)
+                end
+            end
+            local delta = inputPos - dragStart
+            local target = frameStart + delta
             frame.Position = UDim2.new(0, target.X, 0, target.Y)
         end
     end)
@@ -256,7 +263,6 @@ local function showKeyGUI()
             keyGui:Destroy()
             createUI()
         else
-            -- Schwarzer Bildschirm erzwingen
             local blackGui = Instance.new("ScreenGui", parent)
             local blackFrame = Instance.new("Frame", blackGui)
             blackFrame.Size = UDim2.new(1,0,1,0)
@@ -270,4 +276,4 @@ end
 -- =======================
 showKeyGUI()
 
-print("✅ Gica Hub v14 Mobile Auto-Pet-Hopper ready. Script completed.")
+print("✅ Gica Hub v15 Mobile Auto-Pet-Hopper ready. Script completed.")
