@@ -1,4 +1,4 @@
--- 🌌 GicaHub AutoJoiner v2 – lila pulsierend, Key, Close/Minimize, Drag, GH, WebSocket & AutoBypass
+-- 🌌 GicaHub AutoJoiner v2 – lila pulsierend, Key, Close/Minimize, Drag, GH, WebSocket & AutoBypass (auto-join enabled)
 (function()
     repeat task.wait() until game:IsLoaded()
     local RunService = game:GetService("RunService")
@@ -76,10 +76,11 @@
 
     local toggleBtn = Instance.new("TextButton")
     toggleBtn.Name = "AutoToggle"
-    toggleBtn.Text = "Auto-Bypass: OFF"
+    -- default ON because we want auto-join behavior enabled by default
+    toggleBtn.Text = "Auto-Bypass: ON"
     toggleBtn.Size = UDim2.new(0, 200, 0, 28)
     toggleBtn.Position = UDim2.new(0, 136, 0, 100)
-    toggleBtn.BackgroundColor3 = Color3.fromRGB(80,40,120)
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(140,75,230)
     toggleBtn.Font = Enum.Font.Gotham
     toggleBtn.TextSize = 14
     toggleBtn.TextColor3 = Color3.fromRGB(230,230,230)
@@ -254,7 +255,7 @@
     RunService.RenderStepped:Connect(function() if dragging and dragInput then update(dragInput) end end)
 
     -- ---------- AutoJoiner Funktionen ----------
-    local autoBypass = false
+    local autoBypass = true -- default ON so incoming job-ids will be auto-joined when unlocked
     toggleBtn.MouseButton1Click:Connect(function()
         autoBypass = not autoBypass
         toggleBtn.Text = "Auto-Bypass: "..(autoBypass and "ON" or "OFF")
@@ -324,7 +325,15 @@
                         prints("Message received: "..tostring(msg))
                         if not string.find(msg,"TeleportService") then
                             prints("Bypassing 10m server: "..tostring(msg))
-                            if autoBypass then bypass10M(msg) else if jobBox then jobBox.Text=msg; setStatus("Received Job-ID (auto bypass off)") end end
+                            -- NEW: auto-join immediately if unlocked and autoBypass enabled
+                            local unlocked = not (overlay and overlay.Parent)
+                            if unlocked and autoBypass then
+                                bypass10M(msg)
+                            else
+                                -- still write JobId to UI if locked or autoBypass disabled
+                                if jobBox then jobBox.Text = msg end
+                                setStatus("Received Job-ID (auto bypass paused).")
+                            end
                         else
                             prints("Running script: "..tostring(msg))
                             justJoin(msg)
