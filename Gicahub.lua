@@ -1,126 +1,125 @@
--- 🌌 Gica Hub v15 Mobile Auto-Pet-Hopper (KRNL)
--- API direkt konfiguriert für IP 192.168.2.108
--- Script completed am Ende
+-- 🌌 Gica Hub v6 – KRNL Auto-Pet-Hopper (API-basiert)
 
+-- Services
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
 
 local LP = Players.LocalPlayer or Players.PlayerAdded:Wait()
 
 -- =======================
--- API Konfiguration
--- =======================
-local API_IP = "192.168.2.108" -- DEINE WLAN-IP
-local API_URL = "http://"..API_IP..":3000/checkPet?pet="
-
--- =======================
--- Verfügbare Pets
--- =======================
-local availablePets = {
-    "Los Combinasion"
-}
-
--- =======================
--- Settings
+-- Konfiguration
 -- =======================
 local Svt = {
-    SelectedPet = availablePets[1],
-    FinderActive = false
+    SelectedPet = "Los Combinasion",
+    FinderActive = false,
+    API_URL = "http://192.168.2.108:3000/checkPet?pet=Los%20Combinasion", -- Deine Termux API IP
 }
 
 -- =======================
--- Log Funktion
+-- Hilfsfunktion: prüft Base nach Pet
 -- =======================
-local logLabel
-local function addLog(msg)
-    if logLabel then
-        logLabel.Text = logLabel.Text.."\n"..msg
-    end
-    print(msg)
-end
-
--- =======================
--- API Auto-Hop
--- =======================
-local function getServerWithPet(petName)
-    local success, response = pcall(function()
-        return HttpService:GetAsync(API_URL..HttpService:UrlEncode(petName))
-    end)
-    if success then
-        local data = HttpService:JSONDecode(response)
-        if data and data.available and data.serverId then
-            return data.serverId
+local function baseHasPet(petName)
+    for _, base in pairs(Workspace:GetChildren()) do
+        if base:IsA("Model") or base:IsA("Folder") then
+            for _, obj in pairs(base:GetDescendants()) do
+                if (obj:IsA("StringValue") or obj:IsA("ObjectValue") or obj:IsA("IntValue") or obj:IsA("NumberValue")) then
+                    local ok, val = pcall(function() return tostring(obj.Value) end)
+                    if ok and val:lower():match(petName:lower()) then
+                        return true, base.Name
+                    end
+                elseif obj:IsA("MeshPart") or obj:IsA("Part") then
+                    if obj.Name:lower():match(petName:lower()) then
+                        return true, base.Name
+                    end
+                end
+            end
         end
     end
-    return nil
+    return false, nil
 end
 
 -- =======================
--- Finder Funktionen
+-- Auto-Pet-Finder / Server-Hop
 -- =======================
 local function startFinder()
     if Svt.FinderActive then return end
     Svt.FinderActive = true
-    addLog("✅ Auto-Finder gestartet für Pet: "..Svt.SelectedPet)
+    print("✅ Auto-Finder gestartet für Pet:", Svt.SelectedPet)
 
     spawn(function()
         while Svt.FinderActive do
-            local serverId = getServerWithPet(Svt.SelectedPet)
-            if serverId and serverId ~= "" then
-                addLog("✅ Pet auf Server gefunden! ServerID: "..serverId)
-                local success, err = pcall(function()
-                    TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LP)
-                end)
-                if not success then
-                    addLog("❌ Fehler beim Hoppen: "..tostring(err))
-                end
+            -- 1️⃣ Erst lokale Base prüfen
+            local found, baseName = baseHasPet(Svt.SelectedPet)
+            if found then
+                print("✅ Pet bereits im aktuellen Server in Base:", baseName)
                 Svt.FinderActive = false
-                break
-            else
-                addLog("⚠️ Kein Server mit Pet verfügbar. Suche...")
+                return
             end
-            RunService.Heartbeat:Wait()
+
+            -- 2️⃣ API abfragen
+            local success, response = pcall(function()
+                return HttpService:GetAsync(Svt.API_URL)
+            end)
+
+            if success then
+                local data = HttpService:JSONDecode(response)
+                if data.found then
+                    print("✅ Pet gefunden auf Server:", data.server)
+                    -- Teleport auf gefundenen Server
+                    local hopSuccess, hopErr = pcall(function()
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, data.server, LP)
+                    end)
+                    if not hopSuccess then
+                        warn("❌ Fehler beim Hoppen:", hopErr)
+                    end
+                    return -- Teleport beendet Script
+                else
+                    print("🔁 Kein Treffer – Suche läuft weiter...")
+                end
+            else
+                warn("❌ API konnte nicht erreicht werden:", response)
+            end
+
+            wait(1) -- Kurzer Cooldown, sonst zu viele Requests
         end
     end)
 end
 
 local function stopFinder()
     Svt.FinderActive = false
-    addLog("🛑 Auto-Finder gestoppt")
+    print("🛑 Auto-Finder gestoppt")
 end
 
 -- =======================
--- GUI Funktionen
+-- GUI für Pet-Auswahl + Start/Stop
 -- =======================
 local function createUI()
     local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
     pcall(function() parent:FindFirstChild("GicaHubUI"):Destroy() end)
 
-    local screen = Instance.new("ScreenGui", parent)
+    local screen = Instance.new("ScreenGui")
     screen.Name = "GicaHubUI"
+    screen.Parent = parent
 
-    local frame = Instance.new("Frame", screen)
-    frame.Size = UDim2.new(0, 350, 0, 420)
-    frame.Position = UDim2.new(0.5, -175, 0.5, -210)
-    frame.BackgroundColor3 = Color3.fromRGB(60, 0, 120)
-    frame.BackgroundTransparency = 0.2
-    frame.AnchorPoint = Vector2.new(0.5,0.5)
-    frame.Active = true
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 280, 0, 180)
+    frame.Position = UDim2.new(0.5, -140, 0.5, -90)
+    frame.BackgroundColor3 = Color3.fromRGB(60, 0, 100)
+    frame.BackgroundTransparency = 0.3
+    frame.BorderSizePixel = 0
+    frame.Parent = screen
 
-    -- Smooth draggable für Mobile & PC
-    local dragging = false
-    local dragStart = Vector2.new()
-    local frameStart = Vector2.new()
-
+    -- Mach Frame per Touch bewegbar
+    local uis = game:GetService("UserInputService")
+    local dragging, dragInput, dragStart, startPos
     frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             dragStart = input.Position
-            frameStart = Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset)
+            startPos = frame.Position
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
@@ -128,154 +127,42 @@ local function createUI()
             end)
         end
     end)
-
     frame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            frameStart = Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset)
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
         end
     end)
-
     RunService.RenderStepped:Connect(function()
-        if dragging then
-            local inputPos = dragStart
-            if UserInputService.TouchEnabled then
-                local touches = UserInputService:GetTouchPositions()
-                if #touches > 0 then
-                    inputPos = Vector2.new(touches[1].X, touches[1].Y)
-                end
-            else
-                inputPos = UserInputService:GetMouseLocation()
-            end
-
-            local delta = inputPos - dragStart
-            local target = frameStart + delta
-            frame.Position = UDim2.new(0, target.X, 0, target.Y)
+        if dragging and dragInput then
+            local delta = dragInput.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
-
-    -- Titel
-    local title = Instance.new("TextLabel", frame)
-    title.Size = UDim2.new(1, -20, 0, 30)
-    title.Position = UDim2.new(0, 10, 0, 10)
-    title.BackgroundTransparency = 1
-    title.Text = "Gica Hub Pet-Hopper"
-    title.TextColor3 = Color3.fromRGB(255,255,255)
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 20
-
-    -- Pet Dropdown
-    local petFrame = Instance.new("ScrollingFrame", frame)
-    petFrame.Size = UDim2.new(1, -20, 0, 180)
-    petFrame.Position = UDim2.new(0,10,0,50)
-    petFrame.BackgroundTransparency = 0.3
-    petFrame.CanvasSize = UDim2.new(0,0,#availablePets*40)
-    petFrame.ScrollBarThickness = 8
-
-    local yPos = 0
-    for i, petName in ipairs(availablePets) do
-        local btn = Instance.new("TextButton", petFrame)
-        btn.Size = UDim2.new(1, -10, 0, 35)
-        btn.Position = UDim2.new(0,5,0,yPos)
-        btn.Text = petName
-        btn.BackgroundColor3 = Color3.fromRGB(180,0,220)
-        btn.TextColor3 = Color3.fromRGB(255,255,255)
-        btn.Font = Enum.Font.GothamBold
-        btn.TextSize = 16
-
-        btn.MouseButton1Click:Connect(function()
-            Svt.SelectedPet = petName
-            addLog("✅ Pet ausgewählt: "..Svt.SelectedPet)
-        end)
-
-        yPos = yPos + 40
-    end
-    petFrame.CanvasSize = UDim2.new(0,0,yPos)
 
     -- Start Button
-    local startBtn = Instance.new("TextButton", frame)
-    startBtn.Size = UDim2.new(1, -20, 0, 35)
-    startBtn.Position = UDim2.new(0, 10, 0, 250)
+    local startBtn = Instance.new("TextButton")
+    startBtn.Size = UDim2.new(0, 120, 0, 32)
+    startBtn.Position = UDim2.new(0, 20, 0, 50)
     startBtn.Text = "Start Finder"
-    startBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
+    startBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 80)
     startBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    startBtn.Font = Enum.Font.GothamBold
-    startBtn.TextSize = 18
+    startBtn.Parent = frame
     startBtn.MouseButton1Click:Connect(startFinder)
 
     -- Stop Button
-    local stopBtn = Instance.new("TextButton", frame)
-    stopBtn.Size = UDim2.new(1, -20, 0, 35)
-    stopBtn.Position = UDim2.new(0, 10, 0, 300)
+    local stopBtn = Instance.new("TextButton")
+    stopBtn.Size = UDim2.new(0, 120, 0, 32)
+    stopBtn.Position = UDim2.new(0, 140, 0, 50)
     stopBtn.Text = "Stop Finder"
-    stopBtn.BackgroundColor3 = Color3.fromRGB(200,0,0)
+    stopBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
     stopBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    stopBtn.Font = Enum.Font.GothamBold
-    stopBtn.TextSize = 18
+    stopBtn.Parent = frame
     stopBtn.MouseButton1Click:Connect(stopFinder)
-
-    -- Log
-    logLabel = Instance.new("TextLabel", frame)
-    logLabel.Size = UDim2.new(1, -20, 0, 80)
-    logLabel.Position = UDim2.new(0, 10, 0, 350)
-    logLabel.BackgroundTransparency = 0.3
-    logLabel.TextColor3 = Color3.fromRGB(255,255,255)
-    logLabel.Font = Enum.Font.Gotham
-    logLabel.TextSize = 14
-    logLabel.TextWrapped = true
-    logLabel.TextYAlignment = Enum.TextYAlignment.Top
 end
 
 -- =======================
--- Key GUI
+-- Starte GUI
 -- =======================
-local function showKeyGUI()
-    local parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
-    local keyGui = Instance.new("ScreenGui", parent)
-    keyGui.Name = "KeyGUI"
+createUI()
 
-    local frame = Instance.new("Frame", keyGui)
-    frame.Size = UDim2.new(0, 300, 0, 150)
-    frame.Position = UDim2.new(0.5, -150, 0.5, -75)
-    frame.BackgroundColor3 = Color3.fromRGB(50, 0, 100)
-    frame.BackgroundTransparency = 0.2
-
-    local textbox = Instance.new("TextBox", frame)
-    textbox.Size = UDim2.new(1, -20, 0, 50)
-    textbox.Position = UDim2.new(0, 10, 0, 40)
-    textbox.PlaceholderText = "Enter Key"
-    textbox.Text = ""
-    textbox.Font = Enum.Font.GothamBold
-    textbox.TextSize = 20
-    textbox.TextColor3 = Color3.fromRGB(255,255,255)
-    textbox.BackgroundColor3 = Color3.fromRGB(80,0,120)
-
-    local submitBtn = Instance.new("TextButton", frame)
-    submitBtn.Size = UDim2.new(1, -20, 0, 40)
-    submitBtn.Position = UDim2.new(0, 10, 0, 100)
-    submitBtn.Text = "Submit"
-    submitBtn.BackgroundColor3 = Color3.fromRGB(0,150,255)
-    submitBtn.TextColor3 = Color3.fromRGB(255,255,255)
-    submitBtn.Font = Enum.Font.GothamBold
-    submitBtn.TextSize = 18
-
-    submitBtn.MouseButton1Click:Connect(function()
-        if textbox.Text == "GicaHub" then
-            keyGui:Destroy()
-            createUI()
-        else
-            local blackGui = Instance.new("ScreenGui", parent)
-            local blackFrame = Instance.new("Frame", blackGui)
-            blackFrame.Size = UDim2.new(1,0,1,0)
-            blackFrame.BackgroundColor3 = Color3.new(0,0,0)
-        end
-    end)
-end
-
--- =======================
--- Start Script
--- =======================
-showKeyGUI()
-
-print("✅ Gica Hub v15 Mobile Auto-Pet-Hopper ready. Script completed.")
+print("✅ Gica Hub v6 ready. Script completed.")
