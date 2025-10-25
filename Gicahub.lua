@@ -1,4 +1,5 @@
--- 🌌 Gica Hub v13 Mobile Auto-Pet-Hopper (KRNL)
+-- 🌌 Gica Hub v14 Mobile Auto-Pet-Hopper (KRNL)
+-- API direkt konfiguriert für IP 192.168.2.108
 -- Script completed am Ende
 
 local Players = game:GetService("Players")
@@ -37,9 +38,7 @@ local availablePets = {
 -- =======================
 local Svt = {
     SelectedPet = availablePets[1],
-    FinderActive = false,
-    Dragging = false,
-    DragOffset = Vector2.new()
+    FinderActive = false
 }
 
 -- =======================
@@ -80,7 +79,7 @@ local function startFinder()
     spawn(function()
         while Svt.FinderActive do
             local serverId = getServerWithPet(Svt.SelectedPet)
-            if serverId then
+            if serverId and serverId ~= "" then
                 addLog("✅ Pet auf Server gefunden! ServerID: "..serverId)
                 local success, err = pcall(function()
                     TeleportService:TeleportToPlaceInstance(game.PlaceId, serverId, LP)
@@ -91,7 +90,7 @@ local function startFinder()
                 Svt.FinderActive = false
                 break
             else
-                addLog("⚠️ Pet aktuell auf keinem Server verfügbar. Suche...")
+                addLog("⚠️ Kein Server mit Pet verfügbar. Suche...")
             end
             RunService.Heartbeat:Wait()
         end
@@ -121,23 +120,29 @@ local function createUI()
     frame.AnchorPoint = Vector2.new(0.5,0.5)
     frame.Active = true
 
-    -- Smooth bewegbar per Touch
+    -- Smooth draggable
+    local dragging = false
+    local dragStart = Vector2.new()
+    local frameStart = Vector2.new()
+
     frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            Svt.Dragging = true
-            Svt.DragOffset = input.Position - Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset)
+            dragging = true
+            dragStart = input.Position
+            frameStart = Vector2.new(frame.Position.X.Offset, frame.Position.Y.Offset)
             input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
-                    Svt.Dragging = false
+                    dragging = false
                 end
             end)
         end
     end)
+
     RunService.RenderStepped:Connect(function()
-        if Svt.Dragging then
-            local mousePos = UserInputService:GetMouseLocation()
-            local targetPos = UDim2.new(0, mousePos.X - Svt.DragOffset.X, 0, mousePos.Y - Svt.DragOffset.Y)
-            frame.Position = frame.Position:Lerp(targetPos, 0.2)
+        if dragging then
+            local delta = UserInputService:GetMouseLocation() - dragStart
+            local target = frameStart + Vector2.new(delta.X, delta.Y)
+            frame.Position = UDim2.new(0, target.X, 0, target.Y)
         end
     end)
 
@@ -265,4 +270,4 @@ end
 -- =======================
 showKeyGUI()
 
-print("✅ Gica Hub v13 Mobile Auto-Pet-Hopper ready. Script completed.")
+print("✅ Gica Hub v14 Mobile Auto-Pet-Hopper ready. Script completed.")
